@@ -4,14 +4,15 @@ const STEP_COUNT = INSTALL_STEPS.length;
 const STORAGE_KEY = 'omics-onboarding:v1';
 const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 let storageOK = true;
-let state = { route: 'claude', current: 'prepare', done: [], checks: {}, os: 'win11', arch: 'x64', mirror: 'tuna', ubuntuRelease: '24.04', claudeInstall: 'native' };
+let state = { route: 'trae', current: 'prepare', done: [], checks: {}, os: 'win11', arch: 'x64', mirror: 'tuna', ubuntuRelease: '24.04', claudeInstall: 'native', routeProgress: {} };
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
   if (saved && typeof saved === 'object') {
     state.claudeInstall = saved.claudeInstall === 'npm' ? 'npm' : 'native';
     state.mirror = ['tuna','ustc','westlake'].includes(saved.mirror) ? saved.mirror : 'tuna';
     state.ubuntuRelease = saved.ubuntuRelease === '22.04' ? '22.04' : '24.04';
-    state.route = saved.route === 'codex' ? 'codex' : 'claude';
+    state.route = ['trae','claude','codex'].includes(saved.route) ? saved.route : 'claude';
+    state.routeProgress = saved.routeProgress && typeof saved.routeProgress === 'object' ? saved.routeProgress : {};
     state.current = STEPS.some(s => s.id === saved.current) ? saved.current : 'prepare';
     state.done = Array.isArray(saved.done) ? [...new Set(saved.done.filter(id => INSTALL_STEPS.some(s => s.id === id)))] : [];
     state.os = ['win11','win10','older'].includes(saved.os) ? saved.os : 'win11';
@@ -28,9 +29,10 @@ function save() {
   catch { storageOK = false; toast('浏览器未允许保存进度；离开前可在完成页下载记录。'); }
 }
 function toast(text) { $('#toast').textContent = text; $('#toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 3300); }
-function routeName() { return state.route === 'claude' ? 'Claude Code + DeepSeek' : 'Codex'; }
+function routeName() { return {trae:'TRAE + 国内模型',claude:'VS Code + Claude Code + DeepSeek',codex:'VS Code + Codex'}[state.route]; }
+function displayStep(step) { return stepForRoute(step, state.route); }
 function canPrepare() { return state.os !== 'older' && state.arch === 'x64'; }
-function checksFor(step) { return step.id === 'prepare' ? ['我已确认电脑满足上面的 Windows 与 x64 条件', '我可以安装软件，并已保存需要保留的工作'] : (step.checks || []); }
+function checksFor(step) { return step.id === 'prepare' ? ['我已确认电脑满足上面的 Windows 与 x64 条件', '我可以安装软件，并已保存需要保留的工作'] : (displayStep(step).checks || []); }
 function isReady(step) { return checksFor(step).every((_, i) => state.checks[step.id]?.[i]) && (step.id !== 'prepare' || canPrepare()); }
 function codeBlock(text, shell) {
   const index = codes.push(text) - 1;
@@ -44,7 +46,27 @@ function sectionsHTML(sections) {
   return sections.map((item,index) => `<section class="instruction"><div class="instruction-head"><span class="count">${String(index+1).padStart(2,'0')}</span><h2>${escapeHTML(item.title)}</h2></div><p>${escapeHTML(item.text)}</p><div class="content-indent">${item.code ? codeBlock(item.code,item.shell) : ''}${item.visual ? mock(item.visual) : ''}${item.expected ? `<div class="expected"><strong>对照参考 · 实际版本与用户名可能不同</strong><pre>${escapeHTML(item.expected)}</pre></div>` : ''}${item.note ? `<p class="inline-note">ⓘ &nbsp;${escapeHTML(item.note)}</p>` : ''}${item.link ? `<a class="out-link" href="${escapeHTML(item.link[1])}" target="_blank" rel="noreferrer">${escapeHTML(item.link[0])}</a>` : ''}</div></section>`).join('');
 }
 function faqHTML(items) { return items.map(([q,a]) => `<details class="faq-row"><summary>${escapeHTML(q)}</summary><p>${escapeHTML(a)}</p></details>`).join(''); }
-function routePicker() { return `<div class="route-picker" role="group" aria-label="AI 工具路线"><button class="route-card ${state.route==='claude'?'active':''}" data-route="claude" aria-pressed="${state.route==='claude'}"><strong>Claude Code + DeepSeek</strong><small>国产 API 路线 · 明确读取部署说明</small></button><button class="route-card ${state.route==='codex'?'active':''}" data-route="codex" aria-pressed="${state.route==='codex'}"><strong>Codex</strong><small>与现有仓库安装说明一致</small></button></div>`; }
+function routePicker() {
+  return `<div class="route-picker mirror-picker" role="group" aria-label="工作台与 AI 路线">${[['trae','TRAE + 国内模型','新手推荐 · 编辑器与 AI 在同一软件'],['claude','VS Code + Claude Code','已有使用习惯 · 可接 DeepSeek API'],['codex','VS Code + Codex','保留原有命令行路线']].map(([id,name,sub])=>`<button class="route-card ${state.route===id?'active':''}" data-route="${id}" aria-pressed="${state.route===id}"><strong>${name}</strong><small>${sub}</small></button>`).join('')}</div>${state.route==='trae'?`<div class="notice"><span class="symbol">ⓘ</span><p>${escapeHTML(TRAE_NETWORK_NOTE)}</p></div>`:''}`;
+}
+function switchRoute(next) {
+  if (!['trae','claude','codex'].includes(next) || next === state.route) return;
+  const ids = ['vscode','ai','skills'];
+  const previous = state.route;
+  const oldProgress = {done:state.done.filter(id=>ids.includes(id)),checks:Object.fromEntries(ids.map(id=>[id,[...(state.checks[id]||[])]]))};
+  state.routeProgress[previous] = oldProgress;
+  const remembered = state.routeProgress[next];
+  state.done = state.done.filter(id=>!ids.includes(id));
+  ids.forEach(id=>delete state.checks[id]);
+  if (remembered && typeof remembered === 'object') {
+    state.done.push(...ids.filter(id=>Array.isArray(remembered.done) && remembered.done.includes(id)));
+    ids.forEach(id=>{if(Array.isArray(remembered.checks?.[id]))state.checks[id]=remembered.checks[id].slice(0,2).map(v=>v===true);});
+  } else if (previous !== 'trae' && next !== 'trae') {
+    if (oldProgress.done.includes('vscode')) state.done.push('vscode');
+    state.checks.vscode = oldProgress.checks.vscode;
+  }
+  state.route = next;
+}
 function claudeInstallPicker() {
   if (state.route !== 'claude') return '';
   return `<div class="section-heading"><h2>Claude Code 怎么安装？</h2></div><div class="route-picker mirror-picker" role="group" aria-label="Claude Code 安装方式"><button class="route-card ${state.claudeInstall==='native'?'active':''}" data-claude-install="native" aria-pressed="${state.claudeInstall==='native'}"><strong>官方原生安装</strong><small>能访问官方安装器 · 不需要 Node.js</small></button><button class="route-card ${state.claudeInstall==='npm'?'active':''}" data-claude-install="npm" aria-pressed="${state.claudeInstall==='npm'}"><strong>国内下载备用：npm 镜像</strong><small>先准备 Node.js + npm · 再安装 Claude Code</small></button></div><div class="notice"><span class="symbol">ⓘ</span><p>以下命令都在 WSL Ubuntu 中执行。两种安装方式选一种即可；已经能运行 claude --version 就直接继续配置 DeepSeek。切换说明不会清除已确认的进度。</p></div>`;
@@ -58,7 +80,7 @@ function mirrorRecovery() {
 }
 function prepareHTML() {
   return `<div class="hero-board"><div class="board-copy"><span class="board-label">LESS SETUP. MORE SCIENCE.</span><h2>你的第一套<br>组学分析工作台。</h2><p>从安装 WSL 到准备 Python 和 R，<br>每一步都有操作说明和结果参考。</p><div class="board-chips"><span>Windows → Linux</span><span>本机运行</span><span>无需网站账号</span></div></div><div class="workbench" aria-label="Ubuntu 工作台插画"><div class="mini-window"><div class="mini-title"><i></i><i></i><i></i><span>omics-workspace</span></div><div class="mini-body"><div class="mini-tree">EXPLORER<br>⌄ workspace<br>　◇ skills<br>　◇ reports</div><div class="mini-terminal"><b>hello, science.</b>$ python --version<br>$ Rscript --version<br><span style="color:#93a382">准备你的分析工具 ▏</span></div></div></div><div class="floating-check"><span>✓</span> 从准备，到开始</div></div></div>
-    <div class="section-heading"><h2>开始前，准备好这三件事</h2><span>先花一分钟确认，后面会更顺利。</span></div>
+    ${routePicker()}<div class="section-heading"><h2>开始前，准备好这三件事</h2><span>先花一分钟确认，后面会更顺利。</span></div>
     <div class="prep-grid"><article class="prep-card"><div class="card-icon">⊞</div><h3>一台适合的电脑</h3><p>Windows 11，或 Windows 10<br>2004 / 内部版本 19041 及以上。</p><button class="small-link" data-action="system-help">如何查看系统版本？ ↗</button></article><article class="prep-card"><div class="card-icon">⌁</div><h3>网络和可用空间</h3><p>需要下载系统与分析依赖。<br>先检查磁盘余量，保持网络连接。</p></article><article class="prep-card"><div class="card-icon">◇</div><h3>安装权限与耐心</h3><p>安装 WSL 需要管理员权限，<br>中途可能需要重启电脑。</p></article></div>
     <div class="settings-row"><label>我的 Windows 版本<select id="os-select"><option value="win11" ${state.os==='win11'?'selected':''}>Windows 11</option><option value="win10" ${state.os==='win10'?'selected':''}>Windows 10 · 2004 / 19041 及以上</option><option value="older" ${state.os==='older'?'selected':''}>更旧版本 / 暂时不确定</option></select></label><label>我的系统类型<select id="arch-select"><option value="x64" ${state.arch==='x64'?'selected':''}>基于 x64 的处理器（Intel / AMD）</option><option value="arm" ${state.arch==='arm'?'selected':''}>基于 ARM 的处理器</option><option value="unknown" ${state.arch==='unknown'?'selected':''}>我还不确定</option></select></label></div>
     ${!canPrepare()?'<div class="blocked">这条安装路线需要兼容的 Windows 版本与 x64 处理器。请先确认系统信息；ARM 暂不适用。你仍可以浏览后续教程，但不要执行环境安装。</div>':''}
@@ -70,20 +92,20 @@ function checklistHTML(step) {
 }
 function finishHTML() {
   const all = state.done.length === STEP_COUNT;
-  return `<div class="finish-banner"><span class="eyebrow">${all?'YOUR CHECKLIST IS COMPLETE':'YOUR PROGRESS, AT A GLANCE'}</span><h2>${all?'全部步骤确认完成。下一站，开始分析。':`你已经确认完成 ${state.done.length} / ${STEP_COUNT} 步。`}</h2><p>当前路线：${routeName()}。下载这份进度记录，下次可以快速定位工作进展。</p></div><div class="summary-list">${INSTALL_STEPS.map(s => `<div class="summary-item ${state.done.includes(s.id)?'done':''}"><strong>${escapeHTML(s.name)}</strong>${state.done.includes(s.id)?'<span>✓ 你已确认完成</span>':`<button data-go="${s.id}">返回完成 ↗</button>`}</div>`).join('')}</div><div class="notice green"><span class="symbol">✦</span><p>请把部署脚本生成的 report.json 和实际解释器路径一起保存。基础环境就绪后，按具体分析方法运行 runtime-preflight；专用方法和 GPU 环境需要另外准备。</p></div><div class="section-heading"><h2>接下来，让助手先做运行前检查</h2></div>${codeBlock('请先阅读 skills/_meta/omics-analysis-runtime-preflight/SKILL.md。我会提供本次部署报告和想做的分析任务。请核对实际解释器、数据要求和方法依赖，先列出检查结果，暂不运行真实数据分析。',routeName()+' · 对话框')}<div class="bottom-actions"><button class="button-secondary" data-go="environment">← 返回部署步骤</button><button class="button-primary" data-action="download">下载我的进度记录 ↓</button></div><p class="quiet">下载内容只包含路线和手动确认记录，不包含密钥，也不是环境验证报告。</p>`;
+  return `<div class="finish-banner"><span class="eyebrow">${all?'YOUR CHECKLIST IS COMPLETE':'YOUR PROGRESS, AT A GLANCE'}</span><h2>${all?'全部步骤确认完成。下一站，开始分析。':`你已经确认完成 ${state.done.length} / ${STEP_COUNT} 步。`}</h2><p>当前路线：${routeName()}。下载这份进度记录，下次可以快速定位工作进展。</p></div><div class="summary-list">${INSTALL_STEPS.map(displayStep).map(s => `<div class="summary-item ${state.done.includes(s.id)?'done':''}"><strong>${escapeHTML(s.name)}</strong>${state.done.includes(s.id)?'<span>✓ 你已确认完成</span>':`<button data-go="${s.id}">返回完成 ↗</button>`}</div>`).join('')}</div><div class="notice green"><span class="symbol">✦</span><p>请把部署脚本生成的 report.json 和实际解释器路径一起保存。基础环境就绪后，按具体分析方法运行 runtime-preflight；专用方法和 GPU 环境需要另外准备。</p></div><div class="section-heading"><h2>接下来，让助手先做运行前检查</h2></div>${codeBlock('请先阅读 skills/_meta/omics-analysis-runtime-preflight/SKILL.md。我会提供本次部署报告和想做的分析任务。请核对实际解释器、数据要求和方法依赖，先列出检查结果，暂不运行真实数据分析。',routeName()+' · 对话框')}<div class="bottom-actions"><button class="button-secondary" data-go="environment">← 返回部署步骤</button><button class="button-primary" data-action="download">下载我的进度记录 ↓</button></div><p class="quiet">下载内容只包含路线和手动确认记录，不包含密钥，也不是环境验证报告。</p>`;
 }
 function renderSidebar() {
   $('#progress-text').textContent = `${state.done.length} / ${STEP_COUNT}`;
   $('#progress-fill').style.width = `${state.done.length/STEP_COUNT*100}%`;
   $('.progress-track').setAttribute('aria-valuemax', STEP_COUNT);
   $('.progress-track').setAttribute('aria-valuenow',state.done.length);
-  $('#step-nav').innerHTML = STEPS.map((step,i) => `<a href="#${step.id}" class="step-link ${current===step.id?'active':''} ${state.done.includes(step.id)?'complete':''}" ${current===step.id?'aria-current="step"':''}><span class="step-num">${state.done.includes(step.id)?'✓':String(i+1).padStart(2,'0')}</span><span><strong>${escapeHTML(step.name)}</strong><small>${escapeHTML(step.sub)}</small></span>${current===step.id?'<span class="step-arrow">›</span>':''}</a>`).join('');
+  $('#step-nav').innerHTML = STEPS.map(displayStep).map((step,i) => `<a href="#${step.id}" class="step-link ${current===step.id?'active':''} ${state.done.includes(step.id)?'complete':''}" ${current===step.id?'aria-current="step"':''}><span class="step-num">${state.done.includes(step.id)?'✓':String(i+1).padStart(2,'0')}</span><span><strong>${escapeHTML(step.name)}</strong><small>${escapeHTML(step.sub)}</small></span>${current===step.id?'<span class="step-arrow">›</span>':''}</a>`).join('');
 }
 function render(focus=false) {
   codes = [];
-  const step = STEPS.find(s => s.id === current) || STEPS[0];
+  const step = displayStep(STEPS.find(s => s.id === current) || STEPS[0]);
   current = step.id;
-  const index = STEPS.indexOf(step);
+  const index = STEPS.findIndex(s=>s.id===step.id);
   document.title = `${step.name} · Omics 起步`;
   renderSidebar();
   let body = '';
@@ -94,7 +116,7 @@ function render(focus=false) {
     if (current==='mirrors') sections = mirrorSections(state.mirror, state.ubuntuRelease);
     if (current==='ai') sections = aiSections(state.route, state.claudeInstall);
     if (current==='skills') sections = [...sections,...skillSections(state.route)];
-    body = `${step.where?`<div class="where ${step.whereClass}"><span>›_ &nbsp; 操作位置</span><strong>${escapeHTML(step.where)}</strong></div>`:''}${current==='ai'?routePicker()+claudeInstallPicker():''}${current==='mirrors'?mirrorPicker():''}${sectionsHTML(sections)}${current==='mirrors'?mirrorRecovery():''}${step.faq?`<details class="help-inline"><summary>遇到问题？查看这一步的常见情况</summary>${faqHTML(step.faq)}</details>`:''}`;
+    body = `${step.where?`<div class="where ${step.whereClass}"><span>›_ &nbsp; 操作位置</span><strong>${escapeHTML(step.where)}</strong></div>`:''}${['vscode','ai'].includes(current)?routePicker():''}${current==='ai'?claudeInstallPicker():''}${current==='mirrors'?mirrorPicker():''}${state.route==='trae'&&['skills','environment'].includes(current)?`<div class="notice"><span class="symbol">ⓘ</span><p>${escapeHTML(TRAE_NETWORK_NOTE)}</p></div>`:''}${sectionsHTML(sections)}${current==='mirrors'?mirrorRecovery():''}${step.faq?`<details class="help-inline"><summary>遇到问题？查看这一步的常见情况</summary>${faqHTML(step.faq)}</details>`:''}`;
   }
   $('#main').innerHTML = `${!storageOK?'<div class="storage-error">当前浏览器无法保存进度。你仍可使用教程，离开前请下载进度记录。</div>':''}<div class="breadcrumb"><span>起步指南</span><span>/</span><b>Windows 安装向导</b></div><div class="hero-top"><span class="step-tag"><i></i>${escapeHTML(step.tag)}</span><span class="step-meta">${current==='finish'?'安装记录':`STEP ${String(index+1).padStart(2,'0')} / ${String(STEP_COUNT).padStart(2,'0')}`}</span></div><h1>${escapeHTML(step.title)}</h1><p class="lead">${escapeHTML(step.desc)}</p>${body}${current==='finish'?'':checklistHTML(step)+`<div class="bottom-actions">${index===0?'<div class="prep-help">已经完成了一部分？<br><button data-action="pick-step">从左侧选择对应步骤</button></div>':`<button class="button-secondary" data-go="${STEPS[index-1].id}">← 上一步</button>`}<div class="action-right"><button class="button-primary" id="next-button" data-action="complete" ${!isReady(step)?'disabled':''}>${index===0?'准备好了，开始安装':index===STEP_COUNT-1?'确认完成，查看记录':'确认完成，下一步'} <span>→</span></button><p class="quiet">${index===0?'勾选准备项后即可开始':'先勾选上方结果，再确认本步完成'}</p></div></div>`}`;
   if (focus) { window.scrollTo({top:0,behavior:'instant'}); $('#main').focus({preventScroll:true}); }
@@ -106,7 +128,7 @@ function openDialog(title, html) {
   if (!$('#help-dialog').open) $('#help-dialog').showModal();
 }
 function showHelp() {
-  const items = STEPS.flatMap(s => (s.faq || []).map(pair => [...pair,s.name]));
+  const items = STEPS.map(displayStep).flatMap(s => (s.faq || []).map(pair => [...pair,s.name]));
   openDialog('卡住了？从这里找答案。','<p>选中与你看到的情况最接近的问题。不需要提交日志或密钥。</p><label>搜索问题<input type="search" id="faq-search" placeholder="例如：密码、WSL、下载失败" autocomplete="off"></label><div id="faq-results"></div>');
   const update = () => {
     const q = $('#faq-search').value.trim().toLowerCase();
@@ -116,7 +138,7 @@ function showHelp() {
   $('#faq-search').addEventListener('input',update); update();
 }
 function downloadProgress() {
-  const text = ['Omics 起步 · 安装进度记录',`导出时间：${new Date().toLocaleString('zh-CN')}`,`路线：${routeName()}`,`系统选择：${state.os} / ${state.arch}`,'','以下记录来自用户手动确认，不是本机环境检测报告。','',...INSTALL_STEPS.map(s => `${state.done.includes(s.id)?'[已确认]':'[待完成]'} ${s.name}`),'','请另行保存部署脚本生成的 report.json 和实际解释器路径。','基础环境不代表全部 44 个 Skills、专用方法或 GPU 可用。',`仓库：${REPO}`].join('\n');
+  const text = ['Omics 起步 · 安装进度记录',`导出时间：${new Date().toLocaleString('zh-CN')}`,`路线：${routeName()}`,`系统选择：${state.os} / ${state.arch}`,'','以下记录来自用户手动确认，不是本机环境检测报告。','',...INSTALL_STEPS.map(displayStep).map(s => `${state.done.includes(s.id)?'[已确认]':'[待完成]'} ${s.name}`),'','请另行保存部署脚本生成的 report.json 和实际解释器路径。','基础环境不代表全部 44 个 Skills、专用方法或 GPU 可用。',`仓库：${REPO}`].join('\n');
   const url = URL.createObjectURL(new Blob(['\ufeff',text],{type:'text/plain;charset=utf-8'}));
   const link = document.createElement('a'); link.href=url; link.download='Omics-安装进度.txt'; document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000); toast('进度记录已准备下载。');
 }
@@ -141,10 +163,8 @@ document.addEventListener('click',async event => {
   }
   if (button.dataset.route) {
     if (state.route === button.dataset.route) return;
-    state.route = button.dataset.route === 'codex'?'codex':'claude';
-    state.done = state.done.filter(id=>!['ai','skills'].includes(id));
-    delete state.checks.ai; delete state.checks.skills;
-    save(); render(); toast('路线已切换，请重新确认助手和 Skills 步骤。'); return;
+    switchRoute(button.dataset.route);
+    save(); render(); toast('路线已切换。各路线的工作台、助手和 Skills 确认记录分别保存。'); return;
   }
   switch(button.dataset.action) {
     case 'complete': {
@@ -157,10 +177,10 @@ document.addEventListener('click',async event => {
     case 'close': $('#help-dialog').close(); break;
     case 'pick-step': $('#step-nav .step-link').focus(); $('#step-nav').scrollIntoView({block:'nearest'}); toast('点击步骤名称即可跳转，浏览不会标记完成。'); break;
     case 'system-help': openDialog('查看你的 Windows 和处理器','<p>按 Windows + R，输入 <strong>winver</strong> 并按 Enter，查看 Windows 版本及内部版本号。</p><p>再打开「设置 → 系统 → 系统信息 / 关于」，查看「系统类型」。本教程的部署环境需要<strong>基于 x64 的处理器</strong>。</p><p>Windows 10 需要版本 2004、内部版本 19041 或更高；Windows 11 可继续。ARM 处理器暂不适用这份环境锁定配置。</p>'); break;
-    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不上传日志、不自动安装软件。浏览器仅保存路线、系统选择和勾选进度。Claude 自动注册完整 Skills、API 实际连接和本机全流程安装仍需独立验收。</p><p>本地网站版本 0.2.0。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
+    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不上传日志、不自动安装软件。浏览器仅保存路线、系统选择和勾选进度。TRAE / Claude 完整 Skills 自动发现、账号连接与无代理全流程安装仍需独立验收。</p><p>网站版本 0.4.0。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
     case 'download': downloadProgress(); break;
     case 'reset': openDialog('重置这份安装进度？','<p>只清除这个浏览器中保存的路线和勾选记录，不影响电脑上已经安装的软件或任何分析数据。</p><div class="bottom-actions"><button class="button-secondary" data-action="close">保留进度</button><button class="button-primary" data-action="confirm-reset">重置进度</button></div>'); break;
-    case 'confirm-reset': state={route:'claude',current:'prepare',done:[],checks:{},os:'win11',arch:'x64',mirror:'tuna',ubuntuRelease:'24.04',claudeInstall:'native'}; save(); $('#help-dialog').close(); go('prepare'); toast('进度已重置，已安装的软件不受影响。'); break;
+    case 'confirm-reset': state={route:'trae',current:'prepare',done:[],checks:{},os:'win11',arch:'x64',mirror:'tuna',ubuntuRelease:'24.04',claudeInstall:'native',routeProgress:{}}; save(); $('#help-dialog').close(); go('prepare'); toast('进度已重置，已安装的软件不受影响。'); break;
   }
 });
 document.addEventListener('change',event => {

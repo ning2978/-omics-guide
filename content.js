@@ -24,6 +24,9 @@ function mirrorSections(key, release) {
 const SOURCES = [
   ['Microsoft · 安装 WSL', 'https://learn.microsoft.com/zh-cn/windows/wsl/install'],
   ['Microsoft · 在 WSL 中使用 VS Code', 'https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-vscode'],
+  ['TRAE · 中国官网', 'https://www.trae.cn/'],
+  ['TRAE · 连接 WSL 2', 'https://docs.trae.cn/ide_wsl'],
+  ['TRAE · 内置模型与自定义模型', 'https://docs.trae.cn/ide_models'],
   ['Claude Code · 安装与验证', 'https://code.claude.com/docs/en/setup'],
   ['Node.js · 下载与版本', 'https://nodejs.org/en/download'],
   ['Node.js 24.21.0 · 官方校验值', 'https://nodejs.org/dist/v24.21.0/SHASUMS256.txt'],
@@ -102,6 +105,50 @@ const STEPS = [
   ] },
   { id: 'finish', name: '完成与下一步', sub: '带着记录，开始你的研究', tag: 'READY FOR WHAT’S NEXT', title: '准备工作，有了清晰的记录。', desc: '下面是你亲自确认过的安装步骤。网站不会读取电脑的真实环境；实际可用状态，请以部署脚本的报告为准。' },
 ];
+const TRAE_NETWORK_NOTE = '推荐入口使用 TRAE 中国官网和内置国内模型，无需先安装 Claude Code 或配置代理。完整安装仍需要联网：当前网站和 Skills 位于 GitHub，环境部署仍从 GitHub 与 Anaconda 下载。全流程尚未完成无代理验收，遇到下载失败请停在对应步骤排查。';
+function stepForRoute(step, route) {
+  if (route !== 'trae') return step;
+  if (step.id === 'vscode') return {
+    ...step, name: '连接 TRAE', title: '在 TRAE 里，打开你的 Linux 工作间。',
+    desc: 'TRAE 集成编辑器、终端和 AI 助手。连接已有的 WSL Ubuntu 后，文件管理、对话和运行命令都在这里完成。',
+    where: 'Windows 安装 TRAE → TRAE 连接 WSL 2',
+    checks: ['TRAE 左下角显示已连接的 WSL Ubuntu', 'TRAE 终端中 uname -s 为 Linux，pwd 指向 /home/ 下的工作目录'],
+    sections: [
+      { title: '从中国官网下载 Windows 版 TRAE', text: '打开 trae.cn，下载适合这台 x64 电脑的 Windows 安装包并安装，启动后按界面提示登录。使用本教程的内置 AI 时，账号、模型和额度以 TRAE 当前界面为准。', note: '本路线使用 TRAE 自带的 AI 助手，不需要另装 VS Code、Cursor、Claude Code、Node.js 或 npm。', link: ['打开 TRAE 中国官网 ↗', 'https://www.trae.cn/'] },
+      { title: '连接已经安装好的 Ubuntu', text: '在 TRAE 的远程资源管理器选择 WSL，刷新列表，找到前面已安装的 Ubuntu，选择在新窗口连接。左下角出现对应的 WSL 发行版后继续。', note: 'TRAE 目前支持 WSL 2。已有 Ubuntu 时无需再次添加或安装发行版；不要在普通 Windows 窗口运行 Linux 命令。', link: ['查看 TRAE 官方 WSL 操作图解 ↗', 'https://docs.trae.cn/ide_wsl'] },
+      { title: '在 TRAE 中准备 Linux 工作目录', text: '连接成功后，在菜单选择「终端 → 新建终端」。复制下面的命令，确认系统显示 Linux；再通过「文件 → 打开文件夹」打开刚打印的 /home/你的用户名/omics-workspace。', code: 'uname -s\nmkdir -p ~/omics-workspace\ncd ~/omics-workspace\npwd', shell: 'TRAE · WSL 终端', expected: 'Linux\n/home/你的用户名/omics-workspace', note: '如果显示 Windows 路径、PowerShell 或不是 Linux，先回到上一步检查 WSL 连接。打开文件夹后重新开一个终端，再确认 pwd。' },
+    ],
+    faq: [
+      ['TRAE 找不到 WSL 或 Ubuntu', '先在 Windows PowerShell 运行 wsl --list --verbose，确认 Ubuntu 存在且 VERSION 为 2，再刷新 TRAE 的 WSL 列表。具体入口以官方操作图解与当前版本为准。'],
+      ['已经装了 VS Code 或 Cursor，需要卸载吗？', '不需要。直接在 TRAE 中连接现有 WSL 和打开原来的 Linux 项目目录即可，原文件与分析环境不需要搬迁。'],
+      ['TRAE 下载或登录失败', '确认打开的是 trae.cn，并记录当前网络的错误。学校或单位网络策略、服务状态也可能影响连接；不要把更换编辑器当作所有下载问题已经解决。'],
+    ],
+  };
+  if (step.id === 'ai') return {
+    ...step, title: '直接使用 TRAE 里的 AI 助手。',
+    desc: '优先选择内置的国内模型，先确认能够对话，再确认助手的工具实际运行在 WSL 中。',
+    where: 'TRAE · 已连接 WSL 的项目窗口',
+    checks: ['已选择可用的国内模型，并收到正常回复', '助手实际执行的 uname -s 为 Linux，pwd 指向 /home/ 下的项目目录'],
+    faq: [
+      ['还需要注册 Claude 或输入 DeepSeek API Key 吗？', '使用 TRAE 内置模型时不需要 Claude 账号，也无需另外填写 DeepSeek API Key。可用模型与额度由你的 TRAE 账号决定。只有自定义接入 DeepSeek API 时才使用自己的 API Key。'],
+      ['助手能聊天，但没有运行终端命令', '使用当前版本支持文件与终端工具的 Agent 模式，核对执行命令的提示。要求它展示真实工具结果，不能只凭文字声称 Linux。若工具仍在 Windows 执行，先解决 WSL 工作区连接。'],
+      ['在 TRAE 里就一定不需要代理了吗？', TRAE_NETWORK_NOTE],
+      ['显示模型不可用或额度不足', '在 TRAE 的模型和账号页面检查可用范围与额度，换一个账号允许使用的国内模型。内置模型额度和自行购买的 DeepSeek API 余额是两套账户。'],
+    ],
+  };
+  if (step.id === 'skills' || step.id === 'environment') {
+    const routed = { ...step, where: step.where.replace('VS Code', 'TRAE'), sections: step.sections.map(section => ({ ...section, text: section.text.replaceAll('VS Code', 'TRAE'), shell: section.shell?.replace('VS Code', 'TRAE') })) };
+    if (step.id === 'skills') {
+      routed.sections[0] = { ...routed.sections[0], note: '此下载仍访问 GitHub，TRAE 不会自动更换下载源。若国内直连失败，需作者提供已核验的国内仓库或发布包；目前未配置这样的备用地址。' };
+      routed.faq = [...step.faq.filter(([q]) => !q.includes('Claude')), ['TRAE 会自动发现所有 Skills 吗？', '当前仓库按分类目录发布，本教程先让助手读取明确的 SKILL.md 路径。没有声称全部 Skills 已自动注册；按方法运行仍需匹配实际环境。']];
+    } else {
+      routed.sections[1] = { ...routed.sections[1], note: '这一步仍会访问 GitHub 的 Miniforge 安装包和 Anaconda 的固定包地址。普通换源不会覆盖这些地址，尚未通过完整无代理安装验收。失败时保留日志，不要随意更换依赖版本或跳过校验。' };
+      routed.sections[2] = { ...routed.sections[2], code: undefined, shell: undefined, text: '在已连接 WSL 的 TRAE 窗口中，通过「文件 → 打开文件夹」打开 /home/你的用户名/omics-reports，找到本次 create-日期时间 目录。打开 report.json，核对 operation=create、status=PASS，保存 environments 中的解释器路径，并查看测试 PNG。' };
+    }
+    return routed;
+  }
+  return step;
+}
 function claudeInstallSections(method) {
   if (method !== 'npm') return [
     { title: '使用官方原生安装器', text: '适合能正常访问 claude.ai 及后续下载地址的网络。不需要 Node.js 或 npm。若下载超时、返回 403，切换上方「国内下载备用：npm 镜像」。两种方式选一种；已经能运行 claude --version 就跳过安装。', code: 'curl -fsSL https://claude.ai/install.sh | bash', shell: 'VS Code · WSL 终端', note: '这里使用 Linux 的 install.sh。不要在 WSL 中运行 Windows CMD 的 install.cmd 或 PowerShell 的 install.ps1。', link: ['查看 Claude Code 安装说明 ↗', 'https://code.claude.com/docs/en/setup'] },
@@ -138,6 +185,12 @@ fi`, shell: 'VS Code · WSL 终端', note: '镜像可能延迟同步，不能保
   ];
 }
 function aiSections(route, installMethod = 'native') {
+  if (route === 'trae') return [
+    { title: '选择内置的国内模型', text: '在已连接 WSL 的 TRAE 项目窗口打开 AI 对话，点击模型选择器，选择账号当前可用的 DeepSeek、豆包或其他国内模型。先使用内置模型，不必填写 API Key。', note: '模型名称、套餐与额度会更新，以当前界面为准；本教程不承诺永久免费或无限调用。', link: ['查看 TRAE 官方模型说明 ↗', 'https://docs.trae.cn/ide_models'] },
+    { title: '先完成一次普通对话', text: '在 TRAE 对话框发送下面的话，确认收到正常回复，再继续检查工具执行位置。', code: '你好，请用中文回复。先不要安装软件，也不要修改文件。', shell: 'TRAE · 对话框' },
+    { title: '确认助手的终端也在 WSL 中', text: '使用支持终端工具的 Agent 模式发送下面的要求。查看实际工具输出，确认是 Linux 和 /home/ 下的项目目录；若执行位置错误，先修复连接。', code: '请通过终端工具实际执行 pwd、uname -s 和 python3 --version，并展示原始输出。只检查环境，不安装软件、不修改文件。如果不在 WSL Linux 的 /home/ 项目目录中，请停止并说明原因。', shell: 'TRAE · Agent 对话框', expected: 'pwd：/home/你的用户名/omics-workspace\nuname -s：Linux\npython3 --version：至少 3.10', note: '能聊天不等于能在正确的环境执行命令，必须核对工具输出。' },
+    { title: '可选：使用自己的 DeepSeek API', text: '只有想用自己的 DeepSeek API 余额时，才在 TRAE「设置 → 模型 → 添加模型」选择 DeepSeek 服务商，按界面填写模型与 API Key 并检查连接。密钥只在自己的 TRAE 客户端填写。', note: '使用内置模型可以跳过这一项。Claude Code 的 export 配置不适用于 TRAE 模型设置。', link: ['查看 TRAE 自定义模型配置 ↗', 'https://docs.trae.cn/ide_models'] },
+  ];
   if (route === 'codex') return [
     { title: '在 WSL 中安装 Codex', text: '使用官方 Linux 安装入口。以下命令会下载并执行 OpenAI 提供的安装器；请先通过官方说明确认来源。', code: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh', shell: 'VS Code · WSL 终端', link: ['查看 Codex 官方说明 ↗', 'https://learn.chatgpt.com/docs/codex/cli'] },
     { title: '验证版本，然后登录', text: '先确认版本命令成功，再从工作目录启动 Codex，按照工具提示选择可用的登录方式。账号权限和费用以官方界面为准。', code: 'codex --version\ncd ~/omics-workspace\ncodex', shell: 'VS Code · WSL 终端' },
@@ -152,6 +205,10 @@ function aiSections(route, installMethod = 'native') {
   ];
 }
 function skillSections(route) {
+  if (route === 'trae') return [
+    { title: '在 TRAE 打开 Skills 仓库', text: '使用已连接 WSL 的 TRAE，通过「文件 → 打开文件夹」打开 /home/你的用户名/omics-workspace/codex-omics-skills。确认侧栏能看到 skills 和 scripts，再让助手读取下面的部署入口。', note: '打开文件夹不等于安装分析环境；后面仍需运行部署脚本。' },
+    { title: '把明确的部署入口交给 TRAE', text: '把下面的话发送到 TRAE 的 Agent 对话框。先检查它是否读到了文件并在 WSL 中生成计划；也可以按下一步教程手动执行固定命令。', code: '请读取 skills/_meta/omics-environment-setup/SKILL.md 及其引用文件。先用真实终端输出确认 WSL Linux x86_64 和当前仓库目录，再生成 Python 与 R 基础环境部署计划。列出需要访问的下载地址及国内直连风险；不要自动设置代理，不要安装软件，暂不执行 create，也不要改写锁定版本或校验值。', shell: 'TRAE · Agent 对话框', note: '这条路线通过明确文件路径读取说明；完整 Skills 自动发现与实际分析仍需逐项验收。' },
+  ];
   if (route === 'codex') return [
     { title: '按仓库安装器准备 Skills', text: '先预览安装位置，再执行安装。默认位置为 CODEX_HOME/skills，未设置时为 ~/.codex/skills。安装器保留分类和共享资源结构。', code: 'python3 scripts/install_skills.py --dry-run\npython3 scripts/install_skills.py', shell: 'VS Code · WSL 终端', note: '安装后重新开启 Codex 对话。如当前客户端没有自动发现嵌套 Skill，可明确让它读取下面的仓库内说明文件。' },
     { title: '把部署说明交给 Codex', text: '在仓库目录启动 Codex，把下面的话发送到对话框。也可以直接执行下一步的固定部署命令。', code: '请读取 skills/_meta/omics-environment-setup/SKILL.md 及其引用的安装策略，先检查当前 WSL 平台并生成 Python 与 R 基础环境部署计划。请解释计划，暂不执行 create。', shell: 'Codex 对话框' },
