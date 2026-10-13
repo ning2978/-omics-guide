@@ -29,7 +29,7 @@ function save() {
   catch { storageOK = false; toast('浏览器未允许保存进度；离开前可在完成页下载记录。'); }
 }
 function toast(text) { $('#toast').textContent = text; $('#toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 3300); }
-function routeName() { return {trae:'TRAE + 国内模型',claude:'VS Code + Claude Code + DeepSeek',codex:'VS Code + Codex'}[state.route]; }
+function routeName() { return {trae:'TRAE + DeepSeek API',claude:'VS Code + Claude Code + DeepSeek',codex:'VS Code + Codex'}[state.route]; }
 function displayStep(step) { return stepForRoute(step, state.route); }
 function canPrepare() { return state.os !== 'older' && state.arch === 'x64'; }
 function checksFor(step) { return step.id === 'prepare' ? ['我已确认电脑满足上面的 Windows 与 x64 条件', '我可以安装软件，并已保存需要保留的工作'] : (displayStep(step).checks || []); }
@@ -47,7 +47,7 @@ function sectionsHTML(sections) {
 }
 function faqHTML(items) { return items.map(([q,a]) => `<details class="faq-row"><summary>${escapeHTML(q)}</summary><p>${escapeHTML(a)}</p></details>`).join(''); }
 function routePicker() {
-  return `<div class="route-picker mirror-picker" role="group" aria-label="工作台与 AI 路线">${[['trae','TRAE + 国内模型','新手推荐 · 编辑器与 AI 在同一软件'],['claude','VS Code + Claude Code','已有使用习惯 · 可接 DeepSeek API'],['codex','VS Code + Codex','保留原有命令行路线']].map(([id,name,sub])=>`<button class="route-card ${state.route===id?'active':''}" data-route="${id}" aria-pressed="${state.route===id}"><strong>${name}</strong><small>${sub}</small></button>`).join('')}</div>${state.route==='trae'?`<div class="notice"><span class="symbol">ⓘ</span><p>${escapeHTML(TRAE_NETWORK_NOTE)}</p></div>`:''}`;
+  return `<div class="route-picker mirror-picker" role="group" aria-label="工作台与 AI 路线">${[['trae','TRAE + DeepSeek API','新手推荐 · 在设置中直接接入 API'],['claude','VS Code + Claude Code','已有使用习惯 · 可接 DeepSeek API'],['codex','VS Code + Codex','保留原有命令行路线']].map(([id,name,sub])=>`<button class="route-card ${state.route===id?'active':''}" data-route="${id}" aria-pressed="${state.route===id}"><strong>${name}</strong><small>${sub}</small></button>`).join('')}</div>${state.route==='trae'?`<div class="notice"><span class="symbol">ⓘ</span><p>${escapeHTML(TRAE_NETWORK_NOTE)}</p></div>`:''}`;
 }
 function switchRoute(next) {
   if (!['trae','claude','codex'].includes(next) || next === state.route) return;
@@ -177,7 +177,7 @@ document.addEventListener('click',async event => {
     case 'close': $('#help-dialog').close(); break;
     case 'pick-step': $('#step-nav .step-link').focus(); $('#step-nav').scrollIntoView({block:'nearest'}); toast('点击步骤名称即可跳转，浏览不会标记完成。'); break;
     case 'system-help': openDialog('查看你的 Windows 和处理器','<p>按 Windows + R，输入 <strong>winver</strong> 并按 Enter，查看 Windows 版本及内部版本号。</p><p>再打开「设置 → 系统 → 系统信息 / 关于」，查看「系统类型」。本教程的部署环境需要<strong>基于 x64 的处理器</strong>。</p><p>Windows 10 需要版本 2004、内部版本 19041 或更高；Windows 11 可继续。ARM 处理器暂不适用这份环境锁定配置。</p>'); break;
-    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不上传日志、不自动安装软件。浏览器仅保存路线、系统选择和勾选进度。TRAE / Claude 完整 Skills 自动发现、账号连接与无代理全流程安装仍需独立验收。</p><p>网站版本 0.4.0。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
+    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不上传日志、不自动安装软件。浏览器仅保存路线、系统选择和勾选进度。TRAE / Claude 完整 Skills 自动发现、账号连接与无代理全流程安装仍需独立验收。</p><p>网站版本 0.4.1。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
     case 'download': downloadProgress(); break;
     case 'reset': openDialog('重置这份安装进度？','<p>只清除这个浏览器中保存的路线和勾选记录，不影响电脑上已经安装的软件或任何分析数据。</p><div class="bottom-actions"><button class="button-secondary" data-action="close">保留进度</button><button class="button-primary" data-action="confirm-reset">重置进度</button></div>'); break;
     case 'confirm-reset': state={route:'trae',current:'prepare',done:[],checks:{},os:'win11',arch:'x64',mirror:'tuna',ubuntuRelease:'24.04',claudeInstall:'native',routeProgress:{}}; save(); $('#help-dialog').close(); go('prepare'); toast('进度已重置，已安装的软件不受影响。'); break;
