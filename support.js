@@ -56,7 +56,7 @@ function feedbackStepName(id) { return INSTALL_STEPS.find(s=>s.id===id)?.name ||
 function buildFeedback(d) {
   const title=`[${d.type}] ${d.title.trim()}`;
   const body=[
-    '## 问题信息',`- 类型：${d.type}`,`- 所在步骤：${feedbackStepName(d.step)}`,'- 网站版本：0.6.1',
+    '## 问题信息',`- 类型：${d.type}`,`- 所在步骤：${feedbackStepName(d.step)}`,'- 网站版本：0.7.0',
     '', '## 发生了什么',d.details.trim(),'', '## 系统与工具版本',d.environment.trim()||'未填写',
     '', '## 错误信息',d.error.trim()||'未填写','', '## 已尝试的处理',d.tried.trim()||'未填写',
     '', '---','此反馈由 Omics 起步网页整理，用户在 GitHub 确认后提交。',

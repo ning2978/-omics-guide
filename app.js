@@ -7,7 +7,7 @@ let storageOK = true;
 function resolveStep(id) { return STEP_ALIASES[id] || id; }
 function knownPage(id) { return STEPS.some(s=>s.id===id) || SUPPORT_PAGES.some(s=>s.id===id); }
 function freshState() {
-  return {flowVersion:GUIDE_VERSION,route:'trae',current:'prepare',done:[],checks:{},os:'win11',arch:'x64',mirror:'tuna',ubuntuRelease:'24.04'};
+  return {flowVersion:GUIDE_VERSION,preparationVersion:PREPARATION_VERSION,route:'trae',current:'prepare',done:[],checks:{},os:'win11',arch:'x64',mirror:'tuna',biocMirror:'tuna',ubuntuRelease:'24.04'};
 }
 function restoreState(saved) {
   const result = freshState();
@@ -23,10 +23,23 @@ function restoreState(saved) {
   }
   result.os = ['win11','win10','older'].includes(saved.os) ? saved.os : 'win11';
   result.arch = ['x64','arm','unknown'].includes(saved.arch) ? saved.arch : 'x64';
-  result.mirror = ['tuna','ustc','westlake'].includes(saved.mirror) ? saved.mirror : 'tuna';
+  result.mirror = ['tuna','ustc'].includes(saved.mirror) ? saved.mirror : 'tuna';
+  result.biocMirror = ['tuna','ustc','westlake'].includes(saved.biocMirror) ? saved.biocMirror : (['tuna','ustc','westlake'].includes(saved.mirror) ? saved.mirror : 'tuna');
   result.ubuntuRelease = ['22.04','24.04'].includes(saved.ubuntuRelease) ? saved.ubuntuRelease : '24.04';
   if (!sameFlow) result.legacyGuideProgress = saved;
   else if (saved.legacyGuideProgress) result.legacyGuideProgress = saved.legacyGuideProgress;
+  if (saved.previousPreparationProgress) result.previousPreparationProgress = saved.previousPreparationProgress;
+  if (saved.preparationVersion !== PREPARATION_VERSION) {
+    const ids = ['ubuntu','mirrors'];
+    const previous = {done:[],checks:{}};
+    for (const id of ids) {
+      if (Array.isArray(saved.done) && saved.done.includes(id)) previous.done.push(id);
+      if (Array.isArray(saved.checks?.[id])) previous.checks[id] = saved.checks[id].slice(0,2).map(value=>value===true);
+      result.done = result.done.filter(doneId=>doneId!==id);
+      delete result.checks[id];
+    }
+    if (previous.done.length || Object.values(previous.checks).some(values=>values.some(Boolean))) result.previousPreparationProgress = previous;
+  }
   return result;
 }
 let state = freshState();
@@ -35,6 +48,8 @@ catch { storageOK = false; }
 let current = state.current;
 let codes = [];
 let toastTimer;
+let mirrorHelpOpen = false;
+let biocHelpOpen = false;
 const $ = selector => document.querySelector(selector);
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); storageOK = true; }
@@ -66,11 +81,23 @@ function journeyHTML() {
   return '<div class="notice green"><span class="symbol">✦</span><p><strong>一条路线，在 TRAE 里完成</strong><br>打开 Agent → 选择国内模型 → 准备 WSL → 加载 Skills → 部署并验收环境</p></div>';
 }
 function mirrorPicker() {
-  return `<div class="route-picker mirror-picker" role="group" aria-label="镜像站选择">${Object.entries(MIRRORS).map(([key,m])=>`<button class="route-card ${state.mirror===key?'active':''}" data-mirror="${key}" aria-pressed="${state.mirror===key}"><strong>${escapeHTML(m.name)}</strong><small>${escapeHTML(m.scope)}</small></button>`).join('')}</div>${state.mirror==='westlake'?'':`<div class="settings-row"><label>运行 cat /etc/os-release，按实际 Ubuntu 版本选择<select id="ubuntu-release"><option value="24.04" ${state.ubuntuRelease==='24.04'?'selected':''}>Ubuntu 24.04 · ubuntu.sources</option><option value="22.04" ${state.ubuntuRelease==='22.04'?'selected':''}>Ubuntu 22.04 · sources.list</option></select></label></div><p class="quiet">其他版本或自定义源文件布局，请按官方帮助操作。</p>`}<div class="notice"><span class="symbol">ⓘ</span><p>现在可配置 APT / PyPI；R 部分等环境部署完成后再执行。也可以保持原源，勾选确认后继续。</p></div>`;
+  return `<div class="route-picker mirror-picker" role="group" aria-label="Ubuntu 与 PyPI 备用镜像">${Object.entries(MIRRORS).filter(([,m])=>m.apt).map(([key,m])=>`<button class="route-card ${state.mirror===key?'active':''}" data-mirror="${key}" aria-pressed="${state.mirror===key}"><strong>${escapeHTML(m.name)}</strong><small>Ubuntu · PyPI</small></button>`).join('')}</div><div class="settings-row"><label>按 Agent 检查到的实际 Ubuntu 版本选择<select id="ubuntu-release"><option value="24.04" ${state.ubuntuRelease==='24.04'?'selected':''}>Ubuntu 24.04 · ubuntu.sources</option><option value="22.04" ${state.ubuntuRelease==='22.04'?'selected':''}>Ubuntu 22.04 · sources.list</option></select></label></div><p class="quiet">其他版本或自定义源文件布局，请按官方帮助操作。切换这里只改变参考说明，不会修改电脑或完成记录。</p>`;
 }
 function mirrorRecovery() {
   const file = state.ubuntuRelease==='22.04'?'/etc/apt/sources.list':'/etc/apt/sources.list.d/ubuntu.sources';
-  return `<details class="help-inline"><summary>需要撤销换源？展开恢复命令</summary><p class="inline-note">只在需要恢复时执行。APT 恢复首次换源前的备份；PyPI 关闭终端即可恢复；R 需在同一会话恢复或重启。备份文件会保留。</p>${state.mirror==='westlake'?'':codeBlock(`if [ -f "${file}.omics-backup" ]; then\n  sudo cp -a -- "${file}.omics-backup" "${file}"\n  sudo apt update\nelse\n  printf '%s\\n' '没有备份，不做修改。'\nfi`,'Ubuntu · Bash · 恢复 APT')}${codeBlock('if (exists(".omics_previous_bioc", inherits = FALSE)) {\n  options(.omics_previous_bioc)\n  rm(.omics_previous_bioc)\n}','R 控制台 · 恢复 Bioconductor')}</details>`;
+  return `<details class="help-inline"><summary>需要撤销 APT 换源？展开恢复命令</summary><p class="inline-note">仅适用于使用下方 .omics-backup 备份方式的配置。Agent 若另存了备份，请使用准备记录中的实际路径。恢复前先核对备份内容；备份文件会保留。</p>${codeBlock(`if [ -f "${file}.omics-backup" ]; then\n  sudo cp -a -- "${file}.omics-backup" "${file}"\n  sudo apt update\nelse\n  printf '%s\\n' '没有备份，不做修改。'\nfi`,'Ubuntu · Bash · 恢复 APT')}</details>`;
+}
+function mirrorReferenceHTML() {
+  return `<details id="mirror-reference" class="help-inline reference-panel" ${mirrorHelpOpen?'open':''}><summary>下载有问题？查看清华 / 中科大备用配置</summary><div class="reference-body">${mirrorPicker()}${sectionsHTML(mirrorSections(state.mirror,state.ubuntuRelease))}${mirrorRecovery()}</div></details>`;
+}
+function biocReferenceHTML() {
+  const picker = `<div class="route-picker mirror-picker" role="group" aria-label="部署后的 Bioconductor 镜像">${Object.entries(MIRRORS).map(([key,m])=>`<button class="route-card ${state.biocMirror===key?'active':''}" data-bioc-mirror="${key}" aria-pressed="${state.biocMirror===key}"><strong>${escapeHTML(m.name)}</strong><small>Bioconductor${key==='westlake'?' · 需实测':''}</small></button>`).join('')}</div>`;
+  return `<details id="bioc-reference" class="help-inline reference-panel" ${biocHelpOpen?'open':''}><summary>部署后需要额外 R 包？查看 Bioconductor 镜像（可选）</summary><div class="reference-body"><p class="inline-note">基础环境部署成功后，按具体 Skill 的需要使用。清华、中科大、西湖均保留在这里；无需额外下载时直接跳过。</p>${picker}${sectionsHTML([bioconductorSection(state.biocMirror)])}<details class="help-inline"><summary>恢复当前 R 会话之前的设置</summary>${codeBlock('if (exists(".omics_previous_bioc", inherits = FALSE)) {\n  options(.omics_previous_bioc)\n  rm(.omics_previous_bioc)\n}','R 控制台 · 恢复 Bioconductor')}</details></div></details>`;
+}
+function preparationNotice(step) {
+  const previous = state.previousPreparationProgress;
+  const hadRecord = previous?.done?.includes(step.id) || previous?.checks?.[step.id]?.some(Boolean);
+  return ['ubuntu','mirrors'].includes(step.id) && hadRecord && !state.done.includes(step.id) ? '<div class="notice"><span class="symbol">ⓘ</span><p>这一步新增了验收内容，请按新检查项重新确认。原确认记录已保留，其他步骤进度不受影响；已有环境让 Agent 检查复用即可。</p></div>' : '';
 }
 function prepareHTML() {
   return `<div class="hero-board"><div class="board-copy"><span class="board-label">LESS SETUP. MORE SCIENCE.</span><h2>你的第一套<br>组学分析工作台。</h2><p>先打开 TRAE Agent，<br>让助手带你加载 Skills、准备 Python 和 R。</p><div class="board-chips"><span>TRAE Agent</span><span>内置国内模型</span><span>Omics Skills</span></div></div><div class="workbench" aria-label="Ubuntu 工作台插画"><div class="mini-window"><div class="mini-title"><i></i><i></i><i></i><span>omics-workspace</span></div><div class="mini-body"><div class="mini-tree">EXPLORER<br>⌄ workspace<br>　◇ skills<br>　◇ reports</div><div class="mini-terminal"><b>hello, science.</b>$ python --version<br>$ Rscript --version<br><span style="color:#93a382">准备你的分析工具 ▏</span></div></div></div><div class="floating-check"><span>✓</span> 从准备，到开始</div></div></div>
@@ -93,7 +120,7 @@ function renderSidebar() {
   $('#progress-fill').style.width = `${state.done.length/STEP_COUNT*100}%`;
   $('.progress-track').setAttribute('aria-valuemax', STEP_COUNT);
   $('.progress-track').setAttribute('aria-valuenow',state.done.length);
-  $('#step-nav').innerHTML = STEPS.map(displayStep).map((step,i) => `<a href="#${step.id}" class="step-link ${current===step.id?'active':''} ${state.done.includes(step.id)?'complete':''}" ${current===step.id?'aria-current="step"':''}><span class="step-num">${state.done.includes(step.id)?'✓':String(i+1).padStart(2,'0')}</span><span><strong>${escapeHTML(step.name)}</strong><small>${escapeHTML(step.sub)}</small></span>${current===step.id?'<span class="step-arrow">›</span>':''}</a>`).join('');
+  $('#step-nav').innerHTML = STEPS.map(displayStep).map((step,i) => `<a href="#${step.id}" class="step-link ${current===step.id?'active':''} ${state.done.includes(step.id)?'complete':''}" ${current===step.id?'aria-current="step"':''}><span class="step-num">${step.id==='finish'?'→':state.done.includes(step.id)?'✓':String(i+1).padStart(2,'0')}</span><span><strong>${escapeHTML(step.name)}</strong><small>${escapeHTML(step.sub)}</small></span>${current===step.id?'<span class="step-arrow">›</span>':''}</a>`).join('');
 }
 function render(focus=false) {
   codes = [];
@@ -113,10 +140,11 @@ function render(focus=false) {
   else if (current==='prepare') body = prepareHTML();
   else if (current==='finish') body = finishHTML();
   else {
-    const sections = current==='mirrors' ? mirrorSections(state.mirror, state.ubuntuRelease) : (step.sections || []);
+    const sections = step.sections || [];
     body =       (step.where ? '<div class="where '+step.whereClass+'"><span>›_ &nbsp; 操作位置</span><strong>'+escapeHTML(step.where)+'</strong></div>' : '')+
-      (current==='mirrors' ? mirrorPicker() : '')+
-      sectionsHTML(sections)+(current==='mirrors' ? mirrorRecovery() : '')+
+      preparationNotice(step)+sectionsHTML(sections)+
+      (current==='mirrors' ? mirrorReferenceHTML() : '')+
+      (current==='environment' ? biocReferenceHTML() : '')+
       (step.faq ? '<details class="help-inline"><summary>遇到问题？查看这一步的常见情况</summary>'+faqHTML(step.faq)+'</details>' : '');
     body += '<div class="step-support-links"><a href="#faq">查找更多常见问题 ↗</a><a href="#feedback">反馈这一步的问题 ↗</a></div>';
   }
@@ -149,7 +177,12 @@ document.addEventListener('click',async event => {
     return;
   }
   if (button.dataset.mirror) {
-    state.mirror = button.dataset.mirror; state.done = state.done.filter(id=>id!=='mirrors'); delete state.checks.mirrors; save(); render(); return;
+    if (!['tuna','ustc'].includes(button.dataset.mirror)) return;
+    state.mirror = button.dataset.mirror; mirrorHelpOpen = true; save(); render(); return;
+  }
+  if (button.dataset.biocMirror) {
+    if (!Object.hasOwn(MIRRORS,button.dataset.biocMirror)) return;
+    state.biocMirror = button.dataset.biocMirror; biocHelpOpen = true; save(); render(); return;
   }
   switch(button.dataset.action) {
     case 'complete': {
@@ -169,7 +202,7 @@ document.addEventListener('click',async event => {
     case 'close': $('#help-dialog').close(); break;
     case 'pick-step': $('#step-nav .step-link').focus(); $('#step-nav').scrollIntoView({block:'nearest'}); toast('点击步骤名称即可跳转，浏览不会标记完成。'); break;
     case 'system-help': openDialog('查看你的 Windows 和处理器','<p>按 Windows + R，输入 <strong>winver</strong> 并按 Enter，查看 Windows 版本及内部版本号。</p><p>再打开「设置 → 系统 → 系统信息 / 关于」，查看「系统类型」。本教程的部署环境需要<strong>基于 x64 的处理器</strong>。</p><p>Windows 10 需要版本 2004、内部版本 19041 或更高；Windows 11 可继续。ARM 处理器暂不适用这份环境锁定配置。</p>'); break;
-    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不自动上传日志、不自动安装软件。浏览器保存安装进度；反馈草稿只在当前页面暂存。点击前往 GitHub 时会把你预览的反馈带到公开 Issues 编辑页，由你确认提交。TRAE 技能自动发现、账号连接与国内直连全流程仍需在实际电脑验收。</p><p>网站版本 0.6.1。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
+    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不自动上传日志、不自动安装软件。浏览器保存安装进度；反馈草稿只在当前页面暂存。点击前往 GitHub 时会把你预览的反馈带到公开 Issues 编辑页，由你确认提交。TRAE 技能自动发现、账号连接与国内直连全流程仍需在实际电脑验收。</p><p>网站版本 0.7.0。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
     case 'download': downloadProgress(); break;
     case 'reset': openDialog('重置这份安装进度？','<p>只清除这个浏览器中保存的路线和勾选记录，不影响电脑上已经安装的软件或任何分析数据。</p><div class="bottom-actions"><button class="button-secondary" data-action="close">保留进度</button><button class="button-primary" data-action="confirm-reset">重置进度</button></div>'); break;
     case 'confirm-reset': state=freshState(); save(); $('#help-dialog').close(); go('prepare'); toast('进度已重置，已安装的软件不受影响。'); break;
@@ -183,12 +216,16 @@ document.addEventListener('change',event => {
     if (!target.checked) state.done = state.done.filter(id=>id!==current);
     save(); renderSidebar(); $('#next-button').disabled = !isReady(STEPS.find(s=>s.id===current));
   }
-  if (target.id==='ubuntu-release') { state.ubuntuRelease=target.value; state.done=state.done.filter(id=>id!=='mirrors'); delete state.checks.mirrors; save(); render(); }
+  if (target.id==='ubuntu-release' && ['22.04','24.04'].includes(target.value)) { state.ubuntuRelease=target.value; mirrorHelpOpen=true; save(); render(); }
   if (target.id==='os-select' || target.id==='arch-select') {
     state[target.id==='os-select'?'os':'arch']=target.value;
     state.done = state.done.filter(id=>id!=='prepare'); state.checks.prepare=[]; save(); render();
   }
 });
+document.addEventListener('toggle',event=>{
+  if(event.target.id==='mirror-reference') mirrorHelpOpen=event.target.open;
+  if(event.target.id==='bioc-reference') biocHelpOpen=event.target.open;
+},true);
 $('#help-dialog').addEventListener('click',event => { if(event.target===$('#help-dialog')) { const r=event.target.getBoundingClientRect(); if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom) event.target.close(); } });
 window.addEventListener('hashchange',()=>{ const id=resolveStep(location.hash.slice(1)); current=knownPage(id)?id:'prepare'; if(STEPS.some(s=>s.id===current))state.current=current; save(); render(true); });
 const initialHash = resolveStep(location.hash.slice(1));
