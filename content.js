@@ -25,7 +25,10 @@ const SOURCES = [
   ['Microsoft · 安装 WSL', 'https://learn.microsoft.com/zh-cn/windows/wsl/install'],
   ['Microsoft · 在 WSL 中使用 VS Code', 'https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-vscode'],
   ['Claude Code · 安装与验证', 'https://code.claude.com/docs/en/setup'],
-  ['DeepSeek · 接入 Claude Code', 'https://api-docs.deepseek.com/zh-cn/guides/coding_agents/'],
+  ['Node.js · 下载与版本', 'https://nodejs.org/en/download'],
+  ['Node.js 24.21.0 · 官方校验值', 'https://nodejs.org/dist/v24.21.0/SHASUMS256.txt'],
+  ['npmmirror · npm 与 Node.js 国内镜像', 'https://npmmirror.com/'],
+  ['DeepSeek · 接入 Claude Code', 'https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/claude_code/'],
   ['OpenAI · Codex CLI', 'https://learn.chatgpt.com/docs/codex/cli'],
   ['Omics Skills · 部署说明', REPO + '/tree/main/skills/_meta/omics-environment-setup'],
   ['清华 · Ubuntu 镜像', 'https://mirrors.tuna.tsinghua.edu.cn/help/ubuntu/'],
@@ -72,6 +75,10 @@ const STEPS = [
   ] },
   { id: 'ai', name: '配置 AI 助手', sub: '选择工具并完成连接', tag: 'AI ASSISTANT', title: '给工作间，配一位 AI 助手。', desc: '选择一条路线，页面会跟着切换。Claude Code + DeepSeek 使用 DeepSeek API；Codex 使用它自己的登录方式。', where: 'VS Code · WSL 终端', whereClass: 'linux', checks: ['所选工具的版本命令可以正常运行', '已在工作目录启动工具，并收到一条正常回复'], faq: [
     ['claude 或 codex: command not found', '先查看安装器输出的 PATH 提示，按提示操作，再关闭并重新打开终端。Claude 原生安装通常位于 ~/.local/bin；可运行 ~/.local/bin/claude --version 检查。'],
+    ['claude.ai 下载超时或返回 403', '在 Claude Code 路线下切换到「国内下载备用：npm 镜像」。Ubuntu、pip 镜像不会加速 claude.ai；DeepSeek API Key 也不能解决安装包下载失败。npm 镜像是否可用仍取决于网络与同步状态。'],
+    ['install.cmd 能粘贴到这里吗？', '不能。本教程在 WSL Ubuntu 中安装。install.cmd 是 Windows CMD 命令，install.ps1 是 PowerShell 脚本；WSL 原生安装使用 install.sh。Windows 中已有 Node.js 也不能代替 WSL 内的 Linux 版 Node.js。'],
+    ['npm 报 EACCES、EBADENGINE 或找不到原生包', 'EACCES：核对安装命令是否带 --prefix "$HOME/.local"，不要加 sudo。EBADENGINE：确认 WSL 中 Node.js 至少为 22。缺少平台包：不要省略 --include=optional；检查镜像同步情况和完整错误，必要时将该条命令的 registry 改为 https://registry.npmjs.org 再试。'],
+    ['Node.js 镜像返回 404 或校验失败', '停止执行后续步骤。404 可能是镜像尚未同步；可将下载命令的 npmmirror.com/mirrors/node 换为 nodejs.org/dist，保留版本和 SHA256 校验。两处都无法下载时先解决网络，不要跳过校验。'],
     ['DeepSeek 返回 401 或余额错误', '401 通常需要检查密钥是否正确、是否撤销，以及当前终端是否重新配置了令牌。余额错误需到 DeepSeek 官方控制台核对 API 余额。网页聊天账号的可用次数不代表 API 额度。'],
     ['关闭终端后，DeepSeek 配置失效了', '本教程使用当前会话环境变量，没有把密钥写入磁盘。重新打开终端后，需要再次配置地址、模型和密钥，然后在同一终端启动 claude。'],
     ['DeepSeek 路线仍然提示登录或不支持模型', '确认环境变量设置和启动 claude 在同一个 Ubuntu 终端，并查看页面中的 DeepSeek 官方接入说明。模型名与客户端行为会更新；本地网站没有实际验证你的 API 账号，不要把密钥发给维护者。'],
@@ -95,18 +102,53 @@ const STEPS = [
   ] },
   { id: 'finish', name: '完成与下一步', sub: '带着记录，开始你的研究', tag: 'READY FOR WHAT’S NEXT', title: '准备工作，有了清晰的记录。', desc: '下面是你亲自确认过的安装步骤。网站不会读取电脑的真实环境；实际可用状态，请以部署脚本的报告为准。' },
 ];
-function aiSections(route) {
+function claudeInstallSections(method) {
+  if (method !== 'npm') return [
+    { title: '使用官方原生安装器', text: '适合能正常访问 claude.ai 及后续下载地址的网络。不需要 Node.js 或 npm。若下载超时、返回 403，切换上方「国内下载备用：npm 镜像」。两种方式选一种；已经能运行 claude --version 就跳过安装。', code: 'curl -fsSL https://claude.ai/install.sh | bash', shell: 'VS Code · WSL 终端', note: '这里使用 Linux 的 install.sh。不要在 WSL 中运行 Windows CMD 的 install.cmd 或 PowerShell 的 install.ps1。', link: ['查看 Claude Code 安装说明 ↗', 'https://code.claude.com/docs/en/setup'] },
+  ];
+  return [
+    { title: '先检查 WSL 里的 Node.js 和 npm', text: 'Node.js 安装包自带 npm，无需单独下载 npm。Claude Code 当前 npm 包要求 Node.js 22 或更新版本，下面提供 Node.js 24 LTS。先运行检查：已有符合要求的 Linux 版 Node.js 和 npm，可跳过下一项下载。', code: 'uname -s\ncommand -v node\nnode -v\nnpm -v', shell: 'VS Code · WSL 终端', expected: '操作系统：Linux\nNode.js：v22 或更新版本\nnpm：显示版本号', note: 'DeepSeek 指南仍写 Node.js 18+；安装版本要求以 Claude Code 当前文档及 npm 包为准。command not found 表示尚未安装；node 路径若在 /mnt/c，请改用 Linux 版。', link: ['核对 Claude Code 的 npm 要求 ↗', 'https://code.claude.com/docs/en/setup#install-with-npm'] },
+    { title: '缺少 Node.js？下载 Linux 版到用户目录', text: '下面适用于本教程的 Ubuntu x86_64，使用 npmmirror 下载 Node.js 24.21.0 LTS，并对照 Node.js 官方 SHA256 校验后解压。整段复制到 WSL 终端，等待执行结束；已有符合要求的 Node.js 可跳过。', code: `(
+  set -e
+  [ "$(uname -s)" = Linux ] && [ "$(uname -m)" = x86_64 ] || { echo '请在 x86_64 的 WSL Ubuntu 中执行。'; exit 1; }
+  command -v xz >/dev/null || { echo '请先运行 sudo apt install xz-utils，再重试。'; exit 1; }
+  node_dir="$HOME/.local/opt/node-v24.21.0-linux-x64"
+  if [ -e "$node_dir" ]; then
+    echo '目标目录已存在，不覆盖。请先执行下一项的版本检查；异常时保留目录并排查。'
+    exit 0
+  fi
+  node_download_dir=$(mktemp -d)
+  cd "$node_download_dir"
+  curl -fL --connect-timeout 20 --retry 2 -o node.tar.xz 'https://npmmirror.com/mirrors/node/v24.21.0/node-v24.21.0-linux-x64.tar.xz'
+  printf '%s  %s\\n' 'fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6' 'node.tar.xz' | sha256sum -c -
+  mkdir -p "$HOME/.local/opt"
+  tar -xJf node.tar.xz -C "$HOME/.local/opt"
+  printf '已解压；临时下载目录：%s\\n' "$node_download_dir"
+)`, shell: 'VS Code · WSL 终端', note: '校验显示 OK、解压无报错后再继续。版本和校验值核对于 2026-10-13；失败时不会继续解压。没有覆盖系统 Node.js，也不需要 sudo 安装 Node.js。', link: ['核对 Node.js 官方 SHA256 ↗', 'https://nodejs.org/dist/v24.21.0/SHASUMS256.txt'] },
+    { title: '让终端找到 Node.js，并确认版本', text: '下面把用户目录加入当前终端的 PATH，并向 ~/.bashrc 追加同一行，使以后新开的 Bash 终端也能找到工具。不会重复追加或清空原文件。若刚才下载了 Node.js，应显示 v24.21.0。', code: `export PATH="$HOME/.local/opt/node-v24.21.0-linux-x64/bin:$HOME/.local/bin:$PATH"
+grep -Fqx 'export PATH="$HOME/.local/opt/node-v24.21.0-linux-x64/bin:$HOME/.local/bin:$PATH"' "$HOME/.bashrc" || printf '\\n%s\\n' 'export PATH="$HOME/.local/opt/node-v24.21.0-linux-x64/bin:$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+node -v
+npm -v
+node -p 'process.platform'`, shell: 'VS Code · WSL 终端', expected: 'Node.js：v22 或更新版本\nnpm：显示版本号\n平台：linux', note: '必须看到 linux。Windows 中安装的 Node.js 不算这一步完成；如果仍然提示找不到命令，先排查上一项下载与解压结果。', link: ['了解 Node.js 版本 ↗', 'https://nodejs.org/en/download'] },
+    { title: '通过 npm 国内镜像安装 Claude Code', text: '确认上面的版本检查通过后，运行整段命令。工具安装在自己的 ~/.local 目录，不需要 sudo。--registry 只为这一次安装指定 npmmirror，不修改 npm 的全局源设置。', code: `if node -e 'process.exit(process.platform === "linux" && Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)'; then
+  npm install -g --prefix "$HOME/.local" @anthropic-ai/claude-code@latest --registry=https://registry.npmmirror.com --include=optional && claude --version
+else
+  echo '请先在 WSL 中准备 Node.js 22 或更新版本。'
+fi`, shell: 'VS Code · WSL 终端', note: '镜像可能延迟同步，不能保证所有网络都能成功下载。不要省略 optional 依赖；以后用同一条 npm 命令更新。安装完成只表示工具就绪，DeepSeek 接入仍需下面的独立配置。', link: ['查看 npmmirror 使用说明 ↗', 'https://npmmirror.com/'] },
+  ];
+}
+function aiSections(route, installMethod = 'native') {
   if (route === 'codex') return [
     { title: '在 WSL 中安装 Codex', text: '使用官方 Linux 安装入口。以下命令会下载并执行 OpenAI 提供的安装器；请先通过官方说明确认来源。', code: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh', shell: 'VS Code · WSL 终端', link: ['查看 Codex 官方说明 ↗', 'https://learn.chatgpt.com/docs/codex/cli'] },
     { title: '验证版本，然后登录', text: '先确认版本命令成功，再从工作目录启动 Codex，按照工具提示选择可用的登录方式。账号权限和费用以官方界面为准。', code: 'codex --version\ncd ~/omics-workspace\ncodex', shell: 'VS Code · WSL 终端' },
     { title: '发送第一条消息', text: '将下面的话发送到 Codex 对话框，收到回复后再继续。', code: '请用中文说明当前工作目录和操作系统。先不要安装软件，也不要修改文件。', shell: 'Codex 对话框', note: '这一步只验证工具能对话；组学软件将在后面单独安装。' },
   ];
   return [
-    { title: '安装 Claude Code', text: '这里使用官方原生安装方式，不需要 Node.js 或 npm。另一种 npm 安装方式才需要先装 Node.js（通常自带 npm）。两条路线选一条即可；本教程继续使用原生安装。下面的命令会下载并执行官方安装器。', code: 'curl -fsSL https://claude.ai/install.sh | bash', shell: 'VS Code · WSL 终端', link: ['查看 Claude Code 安装说明 ↗', 'https://code.claude.com/docs/en/setup'] },
+    ...claudeInstallSections(installMethod),
     { title: '确认版本，准备 DeepSeek API Key', text: '先运行版本检查。再前往 DeepSeek 开放平台注册或登录，创建 API Key，并查看 API 余额。密钥只在自己的 Ubuntu 终端输入，本网站没有密钥输入框。', code: 'claude --version', shell: 'VS Code · WSL 终端', link: ['打开 DeepSeek 开放平台 ↗', 'https://platform.deepseek.com/'] },
-    { title: '设置接入地址和模型', text: '复制到 Ubuntu 终端执行。模型设置按 2026-10-13 核对的官方文档填写；之后若官方调整模型名，请以链接中的接入说明为准。', code: 'export ANTHROPIC_BASE_URL="https://api.deepseek.com/anthropic"\nexport ANTHROPIC_MODEL="deepseek-flash[1m]"\nexport ANTHROPIC_DEFAULT_OPUS_MODEL="deepseek-flash[1m]"\nexport ANTHROPIC_DEFAULT_SONNET_MODEL="deepseek-flash[1m]"\nexport ANTHROPIC_DEFAULT_HAIKU_MODEL="deepseek-flash"\nexport CLAUDE_CODE_SUBAGENT_MODEL="deepseek-flash"\nexport CLAUDE_CODE_EFFORT_LEVEL="max"', shell: 'VS Code · WSL 终端', link: ['查看 DeepSeek 官方接入说明 ↗', 'https://api-docs.deepseek.com/zh-cn/guides/coding_agents/'] },
-    { title: '在本机隐藏输入密钥', text: '执行下面的命令后，粘贴你刚创建的 API Key，再按 Enter。输入不会显示，也不会把密钥文本写进这条命令的历史记录。', code: 'read -rsp "DeepSeek API Key: " ANTHROPIC_AUTH_TOKEN', shell: 'VS Code · WSL 终端', note: '完成输入后再运行下面一段。令牌只保留在当前终端会话中，关闭后需要重新输入。' },
-    { title: '启动助手，试着打个招呼', text: '在同一终端执行，按客户端提示完成首次设置。进入对话后发送「你好，请用中文回复」。收到正常回答后确认本步完成。', code: 'export ANTHROPIC_AUTH_TOKEN\ncd ~/omics-workspace\nclaude', shell: 'VS Code · WSL 终端', note: '此路线依据官方接入文档整理；你的 API 账号、额度与当前客户端组合仍需要实际连接验证。' },
+    { title: '按 DeepSeek 官方指南设置接入参数', text: '以下地址、模型和上下文设置按 2026-10-13 的 DeepSeek「接入 Claude Code」指南整理。虽然电脑是 Windows，这条路线运行在 WSL 内，因此使用指南的 Linux 命令。在同一个 Ubuntu 终端完成后续密钥输入和启动。', code: 'export ANTHROPIC_BASE_URL="https://api.deepseek.com/anthropic"\nexport ANTHROPIC_MODEL="deepseek-flash[1m]"\nexport ANTHROPIC_DEFAULT_OPUS_MODEL="deepseek-flash[1m]"\nexport ANTHROPIC_DEFAULT_SONNET_MODEL="deepseek-flash[1m]"\nexport ANTHROPIC_DEFAULT_HAIKU_MODEL="deepseek-flash"\nexport CLAUDE_CODE_SUBAGENT_MODEL="deepseek-flash"\nexport CLAUDE_CODE_EFFORT_LEVEL="max"\nexport CLAUDE_CODE_AUTO_COMPACT_WINDOW="786432"', shell: 'VS Code · WSL 终端', note: '这些参数只作用于当前终端。接入后使用 DeepSeek 模型和 API 额度；以后若官方调整模型名或参数，请以原文为准。', link: ['查看 DeepSeek 官方 Claude Code 配置指南 ↗', 'https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/claude_code/'] },
+    { title: '在本机隐藏输入密钥', text: '这里设置的仍是官方指南中的 ANTHROPIC_AUTH_TOKEN，只把直接填写密钥改为隐藏输入。执行下面的命令，粘贴你自己的 DeepSeek API Key，再按 Enter。输入时不会显示字符，也不把密钥文本写进命令历史。', code: 'read -rsp "DeepSeek API Key: " ANTHROPIC_AUTH_TOKEN', shell: 'VS Code · WSL 终端', note: '完成输入后再运行下面一段。令牌只保留在当前终端会话中，关闭后需要重新输入；不要把密钥发到网站、聊天或 GitHub。' },
+    { title: '启动助手，试着打个招呼', text: '在同一终端执行，按客户端提示完成首次设置。进入对话后发送「你好，请用中文回复」。收到正常回答后确认本步完成。', code: 'printf "\\n"\nexport ANTHROPIC_AUTH_TOKEN\ncd ~/omics-workspace\nclaude', shell: 'VS Code · WSL 终端', note: '版本号只确认安装成功；收到回复才说明这次 API 连接可用。此操作会使用你的 DeepSeek API 额度，本网站不会替你调用 API。' },
   ];
 }
 function skillSections(route) {

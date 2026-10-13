@@ -4,10 +4,11 @@ const STEP_COUNT = INSTALL_STEPS.length;
 const STORAGE_KEY = 'omics-onboarding:v1';
 const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 let storageOK = true;
-let state = { route: 'claude', current: 'prepare', done: [], checks: {}, os: 'win11', arch: 'x64', mirror: 'tuna', ubuntuRelease: '24.04' };
+let state = { route: 'claude', current: 'prepare', done: [], checks: {}, os: 'win11', arch: 'x64', mirror: 'tuna', ubuntuRelease: '24.04', claudeInstall: 'native' };
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
   if (saved && typeof saved === 'object') {
+    state.claudeInstall = saved.claudeInstall === 'npm' ? 'npm' : 'native';
     state.mirror = ['tuna','ustc','westlake'].includes(saved.mirror) ? saved.mirror : 'tuna';
     state.ubuntuRelease = saved.ubuntuRelease === '22.04' ? '22.04' : '24.04';
     state.route = saved.route === 'codex' ? 'codex' : 'claude';
@@ -44,6 +45,10 @@ function sectionsHTML(sections) {
 }
 function faqHTML(items) { return items.map(([q,a]) => `<details class="faq-row"><summary>${escapeHTML(q)}</summary><p>${escapeHTML(a)}</p></details>`).join(''); }
 function routePicker() { return `<div class="route-picker" role="group" aria-label="AI 工具路线"><button class="route-card ${state.route==='claude'?'active':''}" data-route="claude" aria-pressed="${state.route==='claude'}"><strong>Claude Code + DeepSeek</strong><small>国产 API 路线 · 明确读取部署说明</small></button><button class="route-card ${state.route==='codex'?'active':''}" data-route="codex" aria-pressed="${state.route==='codex'}"><strong>Codex</strong><small>与现有仓库安装说明一致</small></button></div>`; }
+function claudeInstallPicker() {
+  if (state.route !== 'claude') return '';
+  return `<div class="section-heading"><h2>Claude Code 怎么安装？</h2></div><div class="route-picker mirror-picker" role="group" aria-label="Claude Code 安装方式"><button class="route-card ${state.claudeInstall==='native'?'active':''}" data-claude-install="native" aria-pressed="${state.claudeInstall==='native'}"><strong>官方原生安装</strong><small>能访问官方安装器 · 不需要 Node.js</small></button><button class="route-card ${state.claudeInstall==='npm'?'active':''}" data-claude-install="npm" aria-pressed="${state.claudeInstall==='npm'}"><strong>国内下载备用：npm 镜像</strong><small>先准备 Node.js + npm · 再安装 Claude Code</small></button></div><div class="notice"><span class="symbol">ⓘ</span><p>以下命令都在 WSL Ubuntu 中执行。两种安装方式选一种即可；已经能运行 claude --version 就直接继续配置 DeepSeek。切换说明不会清除已确认的进度。</p></div>`;
+}
 function mirrorPicker() {
   return `<div class="route-picker mirror-picker" role="group" aria-label="镜像站选择">${Object.entries(MIRRORS).map(([key,m])=>`<button class="route-card ${state.mirror===key?'active':''}" data-mirror="${key}" aria-pressed="${state.mirror===key}"><strong>${escapeHTML(m.name)}</strong><small>${escapeHTML(m.scope)}</small></button>`).join('')}</div>${state.mirror==='westlake'?'':`<div class="settings-row"><label>运行 cat /etc/os-release，按实际 Ubuntu 版本选择<select id="ubuntu-release"><option value="24.04" ${state.ubuntuRelease==='24.04'?'selected':''}>Ubuntu 24.04 · ubuntu.sources</option><option value="22.04" ${state.ubuntuRelease==='22.04'?'selected':''}>Ubuntu 22.04 · sources.list</option></select></label></div><p class="quiet">其他版本或自定义源文件布局，请按官方帮助操作。</p>`}<div class="notice"><span class="symbol">ⓘ</span><p>现在可配置 APT / PyPI；R 部分等环境部署完成后再执行。也可以保持原源，勾选确认后继续。</p></div>`;
 }
@@ -87,9 +92,9 @@ function render(focus=false) {
   else {
     let sections = step.sections || [];
     if (current==='mirrors') sections = mirrorSections(state.mirror, state.ubuntuRelease);
-    if (current==='ai') sections = aiSections(state.route);
+    if (current==='ai') sections = aiSections(state.route, state.claudeInstall);
     if (current==='skills') sections = [...sections,...skillSections(state.route)];
-    body = `${step.where?`<div class="where ${step.whereClass}"><span>›_ &nbsp; 操作位置</span><strong>${escapeHTML(step.where)}</strong></div>`:''}${current==='ai'?routePicker():''}${current==='mirrors'?mirrorPicker():''}${sectionsHTML(sections)}${current==='mirrors'?mirrorRecovery():''}${step.faq?`<details class="help-inline"><summary>遇到问题？查看这一步的常见情况</summary>${faqHTML(step.faq)}</details>`:''}`;
+    body = `${step.where?`<div class="where ${step.whereClass}"><span>›_ &nbsp; 操作位置</span><strong>${escapeHTML(step.where)}</strong></div>`:''}${current==='ai'?routePicker()+claudeInstallPicker():''}${current==='mirrors'?mirrorPicker():''}${sectionsHTML(sections)}${current==='mirrors'?mirrorRecovery():''}${step.faq?`<details class="help-inline"><summary>遇到问题？查看这一步的常见情况</summary>${faqHTML(step.faq)}</details>`:''}`;
   }
   $('#main').innerHTML = `${!storageOK?'<div class="storage-error">当前浏览器无法保存进度。你仍可使用教程，离开前请下载进度记录。</div>':''}<div class="breadcrumb"><span>起步指南</span><span>/</span><b>Windows 安装向导</b></div><div class="hero-top"><span class="step-tag"><i></i>${escapeHTML(step.tag)}</span><span class="step-meta">${current==='finish'?'安装记录':`STEP ${String(index+1).padStart(2,'0')} / ${String(STEP_COUNT).padStart(2,'0')}`}</span></div><h1>${escapeHTML(step.title)}</h1><p class="lead">${escapeHTML(step.desc)}</p>${body}${current==='finish'?'':checklistHTML(step)+`<div class="bottom-actions">${index===0?'<div class="prep-help">已经完成了一部分？<br><button data-action="pick-step">从左侧选择对应步骤</button></div>':`<button class="button-secondary" data-go="${STEPS[index-1].id}">← 上一步</button>`}<div class="action-right"><button class="button-primary" id="next-button" data-action="complete" ${!isReady(step)?'disabled':''}>${index===0?'准备好了，开始安装':index===STEP_COUNT-1?'确认完成，查看记录':'确认完成，下一步'} <span>→</span></button><p class="quiet">${index===0?'勾选准备项后即可开始':'先勾选上方结果，再确认本步完成'}</p></div></div>`}`;
   if (focus) { window.scrollTo({top:0,behavior:'instant'}); $('#main').focus({preventScroll:true}); }
@@ -130,6 +135,10 @@ document.addEventListener('click',async event => {
   if (button.dataset.mirror) {
     state.mirror = button.dataset.mirror; state.done = state.done.filter(id=>id!=='mirrors'); delete state.checks.mirrors; save(); render(); return;
   }
+  if (button.dataset.claudeInstall) {
+    state.claudeInstall = button.dataset.claudeInstall === 'npm' ? 'npm' : 'native';
+    save(); render(); return;
+  }
   if (button.dataset.route) {
     if (state.route === button.dataset.route) return;
     state.route = button.dataset.route === 'codex'?'codex':'claude';
@@ -151,7 +160,7 @@ document.addEventListener('click',async event => {
     case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不上传日志、不自动安装软件。浏览器仅保存路线、系统选择和勾选进度。Claude 自动注册完整 Skills、API 实际连接和本机全流程安装仍需独立验收。</p><p>本地网站版本 0.2.0。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
     case 'download': downloadProgress(); break;
     case 'reset': openDialog('重置这份安装进度？','<p>只清除这个浏览器中保存的路线和勾选记录，不影响电脑上已经安装的软件或任何分析数据。</p><div class="bottom-actions"><button class="button-secondary" data-action="close">保留进度</button><button class="button-primary" data-action="confirm-reset">重置进度</button></div>'); break;
-    case 'confirm-reset': state={route:'claude',current:'prepare',done:[],checks:{},os:'win11',arch:'x64',mirror:'tuna',ubuntuRelease:'24.04'}; save(); $('#help-dialog').close(); go('prepare'); toast('进度已重置，已安装的软件不受影响。'); break;
+    case 'confirm-reset': state={route:'claude',current:'prepare',done:[],checks:{},os:'win11',arch:'x64',mirror:'tuna',ubuntuRelease:'24.04',claudeInstall:'native'}; save(); $('#help-dialog').close(); go('prepare'); toast('进度已重置，已安装的软件不受影响。'); break;
   }
 });
 document.addEventListener('change',event => {
