@@ -38,6 +38,7 @@ const SOURCES = [
   ['中科大 · Ubuntu 镜像', 'https://mirrors.ustc.edu.cn/help/ubuntu.html'],
   ['Bioconductor · 官方镜像目录', 'https://bioconductor.org/about/mirrors/'],
   ['DeepSeek · 自定义 API（可选）', 'https://api-docs.deepseek.com/zh-cn/'],
+  ['DeepSeek · 开放平台与 API 充值', 'https://platform.deepseek.com/'],
 ];
 const STEPS = [
   { id: 'prepare', name: '开始前的准备', sub: '先有助手，再准备环境', tag: '准备', title: '打开 TRAE，让 Agent 陪你起步。', desc: '先选好国内模型，再让 Agent 带你检查 Linux、加载 Omics Skills、部署 Python 和 R。整个过程在 TRAE 中完成。' },
@@ -52,7 +53,7 @@ const STEPS = [
   { id: 'agent', name: '选择模型与 Agent', sub: '使用账号可用的国内模型', tag: 'AGENT & MODEL', title: '选好模型，就可以开始对话。', desc: '使用 TRAE 内置模型即可起步。模型负责理解任务，Agent 负责读取文件、调用工具并执行步骤。', where: 'TRAE · Agent 窗口', whereClass: 'linux', checks: ['已选中账号可用的国内模型，并收到正常回复', '已确认使用能够读取文件和运行终端工具的本地 Agent 任务'], sections: [
     { title: '从输入框右下角选择模型', text: '点击当前模型名称，在内置模型列表中选择可用的 DeepSeek Flash，也可以选择其他适合任务的国内模型。截图中显示的名称是 DeepSeek-V4.1-Flash；可用列表与额度以自己的 TRAE 账号为准。', note: '使用内置模型无需另填 DeepSeek API Key。模型在服务端运行，不需要把模型权重下载到电脑。', link: ['查看 TRAE 官方模型说明 ↗', 'https://docs.trae.cn/ide_models'] },
     { title: '让助手说明它能做什么', text: '复制下面的话到 Agent 对话框。收到回复后，查看它是否具备文件和终端工具；下一步会让它实际检查 WSL。', code: '你好，请用中文协助我在这台 Windows 电脑上准备 Omics Skills 分析环境。请说明当前任务是本地还是云端、能否读取本机文件和调用终端。先不要安装软件或修改文件；下一步我们先检查 WSL。', shell: 'TRAE · Agent 对话框', note: '这一步只确认助手可以对话。工具实际运行在哪里，要通过后面的真实执行结果核对。' },
-    { title: '可选：需要自己的 API 时再添加', optional: true, text: '如果内置模型已够用，跳过这一项。想使用自己购买的 DeepSeek API 额度时，再进入「设置 → 模型 → 添加模型」，选择 DeepSeek 服务商，填写自己的密钥并完成校验，然后在对话框选中新增模型。', note: '自定义 API 余额与 TRAE 内置模型额度分别计算。密钥只在自己的客户端填写。', link: ['查看自定义模型配置 ↗', 'https://docs.trae.cn/ide_models'] },
+    { title: '可选：需要自己的 API 时再添加', optional: true, text: '如果内置模型已够用，跳过这一项。需要自己的 DeepSeek API 时，点击下方开放平台链接，注册或登录后充值 API 余额，并在 API Keys 中创建密钥。再回到 TRAE「设置 → 模型 → 添加模型」，选择 DeepSeek 服务商，填写密钥并完成校验，然后在对话框选中新增模型。', note: '自定义 API 余额与 TRAE 内置模型额度分别计算。充值在 DeepSeek 官方平台完成，密钥只在自己的客户端填写。', link: ['打开 DeepSeek 开放平台 · 充值 / 购买 API 额度 ↗', 'https://platform.deepseek.com/'] },
   ], faq: [
     ['我的列表没有 DeepSeek-V4.1-Flash', '模型名、账号权限和套餐会变化。选当前可用的 DeepSeek Flash 或其他国内模型即可，不必因为名称不同重新安装软件。'],
     ['能聊天，但不能执行命令', '确认任务运行在本机，并支持文件与终端工具。查看工具调用是否等待你的操作；如果工具不可用，先解决 Agent 的执行能力，再进入部署。'],
