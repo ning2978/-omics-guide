@@ -7,15 +7,16 @@
   <meta name="theme-color" content="#175e4a">
   <title>Omics 起步 · 从电脑到分析，一步一步来</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23175e4a'/%3E%3Cpath d='M18 17c30 0-2 30 28 30M46 17c-30 0 2 30-28 30M22 23h20M23 41h18M28 32h8' fill='none' stroke='%23fff' stroke-width='3'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css">
-  <script defer src="content.js?v=20261013-agent-v5-api"></script>
-  <script defer src="app.js?v=20261013-agent-v5-api"></script>
+  <link rel="stylesheet" href="styles.css?v=20261013-support-v6">
+  <script defer src="content.js?v=20261013-support-v6"></script>
+  <script defer src="support.js?v=20261013-support-v6"></script>
+  <script defer src="app.js?v=20261013-support-v6"></script>
 </head>
 <body>
   <a class="skip" href="#main">跳到当前步骤</a>
   <header class="topbar">
     <a class="brand" href="#prepare" aria-label="Omics 起步首页"><span class="brand-mark">⌘</span><span>Omics <b>起步</b></span><span class="beta">BETA</span></a>
-    <nav aria-label="网站导航"><a class="top-active" href="#prepare">安装向导</a><button data-action="help">遇到问题？</button><a href="https://github.com/ning2978/codex-omics-skills" target="_blank" rel="noreferrer">Skills 仓库 <span aria-hidden="true">↗</span></a></nav>
+    <nav aria-label="网站导航"><a class="top-active" data-nav-page="guide" href="#prepare">安装向导</a><a data-nav-page="faq" href="#faq">常见问题 FAQ</a><a data-nav-page="feedback" href="#feedback">问题反馈</a><a class="repo-link" href="https://github.com/ning2978/codex-omics-skills" target="_blank" rel="noreferrer">Skills 仓库 <span aria-hidden="true">↗</span></a></nav>
     <span class="local-label"><i></i> 进度保存在此浏览器</span>
   </header>
   <div class="layout">
@@ -24,6 +25,7 @@
       <div class="progress-label"><span>安装进度</span><strong id="progress-text">0 / 8</strong></div>
       <div class="progress-track" role="progressbar" aria-label="安装进度" aria-valuemin="0" aria-valuemax="8" aria-valuenow="0"><span id="progress-fill"></span></div>
       <nav id="step-nav" aria-label="步骤导航"></nav>
+      <div class="sidebar-support"><a href="#faq">常见问题 FAQ ↗</a><a href="#feedback">提交问题与建议 ↗</a></div>
       <div class="sidebar-note"><span class="note-symbol">✦</span><div><strong>随时停下来也没关系</strong><p>重启电脑后，用同一个浏览器<br>和网址回来，就能接着完成。</p></div></div>
       <button class="text-button reset" data-action="reset">重置向导进度</button>
     </aside>

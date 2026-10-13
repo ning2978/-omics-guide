@@ -5,6 +5,7 @@ const STORAGE_KEY = 'omics-onboarding:v1';
 const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 let storageOK = true;
 function resolveStep(id) { return STEP_ALIASES[id] || id; }
+function knownPage(id) { return STEPS.some(s=>s.id===id) || SUPPORT_PAGES.some(s=>s.id===id); }
 function freshState() {
   return {flowVersion:GUIDE_VERSION,route:'trae',current:'prepare',done:[],checks:{},os:'win11',arch:'x64',mirror:'tuna',ubuntuRelease:'24.04'};
 }
@@ -96,13 +97,20 @@ function renderSidebar() {
 }
 function render(focus=false) {
   codes = [];
-  const step = displayStep(STEPS.find(s => s.id === current) || STEPS[0]);
+  const step = displayStep(STEPS.find(s => s.id === current) || SUPPORT_PAGES.find(s=>s.id===current) || STEPS[0]);
   current = step.id;
   const index = STEPS.findIndex(s=>s.id===step.id);
   document.title = `${step.name} · Omics 起步`;
   renderSidebar();
+  document.querySelectorAll('[data-nav-page]').forEach(link=>{
+    const active=link.dataset.navPage===(step.support?current:'guide');
+    link.classList.toggle('top-active',active);
+    if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
+  });
   let body = '';
-  if (current==='prepare') body = prepareHTML();
+  if (current==='faq') body = faqPageHTML();
+  else if (current==='feedback') body = feedbackPageHTML();
+  else if (current==='prepare') body = prepareHTML();
   else if (current==='finish') body = finishHTML();
   else {
     const sections = current==='mirrors' ? mirrorSections(state.mirror, state.ubuntuRelease) : (step.sections || []);
@@ -110,8 +118,10 @@ function render(focus=false) {
       (current==='mirrors' ? mirrorPicker() : '')+
       sectionsHTML(sections)+(current==='mirrors' ? mirrorRecovery() : '')+
       (step.faq ? '<details class="help-inline"><summary>遇到问题？查看这一步的常见情况</summary>'+faqHTML(step.faq)+'</details>' : '');
+    body += '<div class="step-support-links"><a href="#faq">查找更多常见问题 ↗</a><a href="#feedback">反馈这一步的问题 ↗</a></div>';
   }
-  $('#main').innerHTML = `${!storageOK?'<div class="storage-error">当前浏览器无法保存进度。你仍可使用教程，离开前请下载进度记录。</div>':''}<div class="breadcrumb"><span>起步指南</span><span>/</span><b>Windows 安装向导</b></div><div class="hero-top"><span class="step-tag"><i></i>${escapeHTML(step.tag)}</span><span class="step-meta">${current==='finish'?'安装记录':`STEP ${String(index+1).padStart(2,'0')} / ${String(STEP_COUNT).padStart(2,'0')}`}</span></div><h1>${escapeHTML(step.title)}</h1><p class="lead">${escapeHTML(step.desc)}</p>${body}${current==='finish'?'':checklistHTML(step)+`<div class="bottom-actions">${index===0?'<div class="prep-help">已经完成了一部分？<br><button data-action="pick-step">从左侧选择对应步骤</button></div>':`<button class="button-secondary" data-go="${STEPS[index-1].id}">← 上一步</button>`}<div class="action-right"><button class="button-primary" id="next-button" data-action="complete" ${!isReady(step)?'disabled':''}>${index===0?'准备好了，开始安装':index===STEP_COUNT-1?'确认完成，查看记录':'确认完成，下一步'} <span>→</span></button><p class="quiet">${index===0?'勾选准备项后即可开始':'先勾选上方结果，再确认本步完成'}</p></div></div>`}`;
+  $('#main').innerHTML = `${!storageOK?'<div class="storage-error">当前浏览器无法保存进度。你仍可使用教程，离开前请下载进度记录。</div>':''}<div class="breadcrumb"><span>起步指南</span><span>/</span><b>${step.support?'帮助与反馈':'Windows 安装向导'}</b></div><div class="hero-top"><span class="step-tag"><i></i>${escapeHTML(step.tag)}</span><span class="step-meta">${step.support?'帮助与反馈':current==='finish'?'安装记录':`STEP ${String(index+1).padStart(2,'0')} / ${String(STEP_COUNT).padStart(2,'0')}`}</span></div><h1>${escapeHTML(step.title)}</h1><p class="lead">${escapeHTML(step.desc)}</p>${body}${current==='finish'||step.support?'':checklistHTML(step)+`<div class="bottom-actions">${index===0?'<div class="prep-help">已经完成了一部分？<br><button data-action="pick-step">从左侧选择对应步骤</button></div>':`<button class="button-secondary" data-go="${STEPS[index-1].id}">← 上一步</button>`}<div class="action-right"><button class="button-primary" id="next-button" data-action="complete" ${!isReady(step)?'disabled':''}>${index===0?'准备好了，开始安装':index===STEP_COUNT-1?'确认完成，查看记录':'确认完成，下一步'} <span>→</span></button><p class="quiet">${index===0?'勾选准备项后即可开始':'先勾选上方结果，再确认本步完成'}</p></div></div>`}`;
+  if(step.support)mountSupport(current);
   if (focus) { window.scrollTo({top:0,behavior:'instant'}); $('#main').focus({preventScroll:true}); }
 }
 function go(id) { id=resolveStep(id); if (location.hash.slice(1)===id) { current=id; render(true); } else location.hash = id; }
@@ -120,16 +130,7 @@ function openDialog(title, html) {
   $('#dialog-content').innerHTML = html;
   if (!$('#help-dialog').open) $('#help-dialog').showModal();
 }
-function showHelp() {
-  const items = STEPS.map(displayStep).flatMap(s => (s.faq || []).map(pair => [...pair,s.name]));
-  openDialog('卡住了？从这里找答案。','<p>选中与你看到的情况最接近的问题。不需要提交日志或密钥。</p><label>搜索问题<input type="search" id="faq-search" placeholder="例如：密码、WSL、下载失败" autocomplete="off"></label><div id="faq-results"></div>');
-  const update = () => {
-    const q = $('#faq-search').value.trim().toLowerCase();
-    const found = items.filter(row => row.join(' ').toLowerCase().includes(q));
-    $('#faq-results').innerHTML = found.length ? faqHTML(found.map(([q,a,section])=>[`${section} · ${q}`,a])) : '<p class="search-empty">暂时没有匹配项。可以换一个关键词，或查看「资料来源与版本」中的官方排错说明。</p>';
-  };
-  $('#faq-search').addEventListener('input',update); update();
-}
+function showHelp() { go('faq'); }
 function downloadProgress() {
   const text = ['Omics 起步 · 安装进度记录',`导出时间：${new Date().toLocaleString('zh-CN')}`,`路线：${routeName()}`,`系统选择：${state.os} / ${state.arch}`,'','以下记录来自用户手动确认，不是本机环境检测报告。','',...INSTALL_STEPS.map(displayStep).map(s => `${state.done.includes(s.id)?'[已确认]':'[待完成]'} ${s.name}`),'','请另行保存部署脚本生成的 report.json 和实际解释器路径。','基础环境不代表全部 44 个 Skills、专用方法或 GPU 可用。',`仓库：${REPO}`].join('\n');
   const url = URL.createObjectURL(new Blob(['\ufeff',text],{type:'text/plain;charset=utf-8'}));
@@ -158,10 +159,17 @@ document.addEventListener('click',async event => {
       save(); go(STEPS[STEPS.indexOf(step)+1].id); break;
     }
     case 'help': showHelp(); break;
+    case 'feedback-copy': await copyFeedback(); break;
+    case 'feedback-from-faq':
+      feedbackDraft ||= newFeedbackDraft();
+      if(!feedbackDraft.title)feedbackDraft.title=faqFilters.query.slice(0,100);
+      if(INSTALL_STEPS.some(s=>s.id===faqFilters.category))feedbackDraft.step=faqFilters.category;
+      go('feedback');break;
+    case 'faq-clear': faqFilters={query:'',category:'all'};render();$('#support-search').focus();break;
     case 'close': $('#help-dialog').close(); break;
     case 'pick-step': $('#step-nav .step-link').focus(); $('#step-nav').scrollIntoView({block:'nearest'}); toast('点击步骤名称即可跳转，浏览不会标记完成。'); break;
     case 'system-help': openDialog('查看你的 Windows 和处理器','<p>按 Windows + R，输入 <strong>winver</strong> 并按 Enter，查看 Windows 版本及内部版本号。</p><p>再打开「设置 → 系统 → 系统信息 / 关于」，查看「系统类型」。本教程的部署环境需要<strong>基于 x64 的处理器</strong>。</p><p>Windows 10 需要版本 2004、内部版本 19041 或更高；Windows 11 可继续。ARM 处理器暂不适用这份环境锁定配置。</p>'); break;
-    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不上传日志、不自动安装软件。浏览器仅保存系统选择、勾选进度及旧版进度备份。TRAE 技能自动发现、账号连接与国内直连全流程仍需在实际电脑验收。</p><p>网站版本 0.5.1。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
+    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不自动上传日志、不自动安装软件。浏览器保存安装进度；反馈草稿只在当前页面暂存。点击前往 GitHub 时会把你预览的反馈带到公开 Issues 编辑页，由你确认提交。TRAE 技能自动发现、账号连接与国内直连全流程仍需在实际电脑验收。</p><p>网站版本 0.6.0。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
     case 'download': downloadProgress(); break;
     case 'reset': openDialog('重置这份安装进度？','<p>只清除这个浏览器中保存的路线和勾选记录，不影响电脑上已经安装的软件或任何分析数据。</p><div class="bottom-actions"><button class="button-secondary" data-action="close">保留进度</button><button class="button-primary" data-action="confirm-reset">重置进度</button></div>'); break;
     case 'confirm-reset': state=freshState(); save(); $('#help-dialog').close(); go('prepare'); toast('进度已重置，已安装的软件不受影响。'); break;
@@ -182,9 +190,9 @@ document.addEventListener('change',event => {
   }
 });
 $('#help-dialog').addEventListener('click',event => { if(event.target===$('#help-dialog')) { const r=event.target.getBoundingClientRect(); if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom) event.target.close(); } });
-window.addEventListener('hashchange',()=>{ const id=resolveStep(location.hash.slice(1)); current=STEPS.some(s=>s.id===id)?id:'prepare'; state.current=current; save(); render(true); });
+window.addEventListener('hashchange',()=>{ const id=resolveStep(location.hash.slice(1)); current=knownPage(id)?id:'prepare'; if(STEPS.some(s=>s.id===current))state.current=current; save(); render(true); });
 const initialHash = resolveStep(location.hash.slice(1));
-current = STEPS.some(s=>s.id===initialHash)?initialHash:state.current;
-state.current=current;
+current = knownPage(initialHash)?initialHash:state.current;
+if(STEPS.some(s=>s.id===current))state.current=current;
 history.replaceState(null,'',`#${current}`);
 save(); render();
