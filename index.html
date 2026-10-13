@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="从 Windows 到组学分析环境：带你安装 WSL、连接 VS Code、配置 AI 工具与 Omics Skills。">
+  <meta name="theme-color" content="#175e4a">
+  <title>Omics 起步 · 从电脑到分析，一步一步来</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23175e4a'/%3E%3Cpath d='M18 17c30 0-2 30 28 30M46 17c-30 0 2 30-28 30M22 23h20M23 41h18M28 32h8' fill='none' stroke='%23fff' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="content.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">跳到当前步骤</a>
+  <header class="topbar">
+    <a class="brand" href="#prepare" aria-label="Omics 起步首页"><span class="brand-mark">⌘</span><span>Omics <b>起步</b></span><span class="beta">BETA</span></a>
+    <nav aria-label="网站导航"><a class="top-active" href="#prepare">安装向导</a><button data-action="help">遇到问题？</button><a href="https://github.com/ning2978/codex-omics-skills" target="_blank" rel="noreferrer">Skills 仓库 <span aria-hidden="true">↗</span></a></nav>
+    <span class="local-label"><i></i> 进度保存在此浏览器</span>
+  </header>
+  <div class="layout">
+    <aside class="sidebar" aria-label="安装步骤">
+      <div class="sidebar-intro"><span class="eyebrow">YOUR FIRST WORKSPACE</span><h2>你的分析环境<br>从这里开始。</h2><p>不需要编程基础，跟着做就好。</p></div>
+      <div class="progress-label"><span>安装进度</span><strong id="progress-text">0 / 7</strong></div>
+      <div class="progress-track" role="progressbar" aria-label="安装进度" aria-valuemin="0" aria-valuemax="7" aria-valuenow="0"><span id="progress-fill"></span></div>
+      <nav id="step-nav" aria-label="步骤导航"></nav>
+      <div class="sidebar-note"><span class="note-symbol">✦</span><div><strong>随时停下来也没关系</strong><p>重启电脑后，用同一个浏览器<br>和网址回来，就能接着完成。</p></div></div>
+      <button class="text-button reset" data-action="reset">重置向导进度</button>
+    </aside>
+    <main id="main" tabindex="-1"></main>
+  </div>
+  <footer><span>OMICS 起步 <span class="footer-dot">·</span> 让工具准备更简单，让研究更进一步。</span><button data-action="sources">资料来源与版本</button></footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <dialog id="help-dialog" aria-labelledby="help-title"><div class="dialog-head"><div><span class="eyebrow">LET’S FIGURE IT OUT</span><h2 id="help-title">卡住了？从这里找答案。</h2></div><button class="icon-button" data-action="close" aria-label="关闭弹窗">×</button></div><div id="dialog-content"></div></dialog>
+  <noscript>请启用 JavaScript 以使用步骤导航、命令复制和进度保存。</noscript>
+</body>
+</html>
