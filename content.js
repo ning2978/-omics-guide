@@ -8,7 +8,7 @@ const MIRRORS = {
 function mirrorSections(key, release) {
   const m = MIRRORS[key] || MIRRORS.tuna;
   const file = release === '22.04' ? '/etc/apt/sources.list' : '/etc/apt/sources.list.d/ubuntu.sources';
-  const parts = [{ title: '先分清：你要加速哪一种下载？', text: 'APT 用于 Ubuntu 软件，PyPI 用于 Python 包，Bioconductor 用于 R 生物信息学包。它们的地址不能混用。原来的源能正常下载，就不用改。', note: '本页不会加速 WSL 首次下载、GitHub、Claude Code 安装器或 DeepSeek API，也不会改写本项目锁定文件中的下载地址。' }];
+  const parts = [{ title: '先分清：你要加速哪一种下载？', text: 'APT 用于 Ubuntu 软件，PyPI 用于 Python 包，Bioconductor 用于 R 生物信息学包。它们的地址不能混用。原来的源能正常下载，就不用改。', note: '本页不会加速 WSL 首次下载、GitHub、TRAE 下载或模型 API，也不会改写本项目锁定文件中的下载地址。' }];
   if (m.apt) parts.push(
     { title: `Ubuntu ${release}：先备份，再换源`, text: '先运行 cat /etc/os-release 确认版本，再使用上面的版本选项。命令只替换指定文件中的 Ubuntu 普通归档地址，保留发行版代号、签名、安全更新源和第三方源。已有镜像地址请按官方帮助核对。', code: `if [ -f "${file}" ]; then\n  if [ ! -e "${file}.omics-backup" ]; then\n    sudo cp -a -- "${file}" "${file}.omics-backup"\n  fi\n  if [ -f "${file}.omics-backup" ]; then\n    sudo sed -i -E 's@https?://([a-z][a-z]\\.)?archive\\.ubuntu\\.com/ubuntu/?@${m.apt}@g' "${file}"\n    sudo apt update\n  fi\nelse\n  printf '%s\\n' '未找到对应源文件，请核对 Ubuntu 版本与官方帮助。'\nfi`, shell: 'Ubuntu · Bash', note: '首次备份保留为 .omics-backup。不要同时套用两个版本配置；安全更新源仍访问 Ubuntu 官方地址。', link: [`查看${m.name} Ubuntu 帮助 ↗`,m.help] },
     { title: '确认地址和下载结果', text: '下面只显示源地址。确认其中出现所选镜像，并确认上一步 apt update 没有下载或签名错误。', code: `grep -E '^(URIs:|deb )' "${file}"`, shell: 'Ubuntu · Bash', expected: `普通软件源应包含：${m.apt}\n安全更新源保留原设置` },
@@ -21,206 +21,84 @@ function mirrorSections(key, release) {
   );
   return parts;
 }
+/* TRAE Agent 主路线；与 content.js 中保留的镜像源函数组合发布。 */
+const GUIDE_VERSION = 'trae-agent-v1';
+const STEP_ALIASES = { vscode: 'trae', ai: 'agent' };
+const TRAE_NETWORK_NOTE = '模型使用 TRAE 账号当前可用的国内服务。Skills 和部分环境包仍从 GitHub、Anaconda 下载，遇到网络错误时让 Agent 定位具体地址；完整流程的国内直连仍需在实际电脑验收。';
 const SOURCES = [
-  ['Microsoft · 安装 WSL', 'https://learn.microsoft.com/zh-cn/windows/wsl/install'],
-  ['Microsoft · 在 WSL 中使用 VS Code', 'https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-vscode'],
-  ['TRAE · 中国官网', 'https://www.trae.cn/'],
-  ['TRAE · 连接 WSL 2', 'https://docs.trae.cn/ide_wsl'],
+  ['TRAE · 安装与打开 Agent 窗口', 'https://docs.trae.cn/ide_get-started-with-trae'],
+  ['TRAE · 内置 Agent', 'https://docs.trae.cn/ide_built-in-agent'],
   ['TRAE · 内置模型与自定义模型', 'https://docs.trae.cn/ide_models'],
-  ['Claude Code · 安装与验证', 'https://code.claude.com/docs/en/setup'],
-  ['Node.js · 下载与版本', 'https://nodejs.org/en/download'],
-  ['Node.js 24.21.0 · 官方校验值', 'https://nodejs.org/dist/v24.21.0/SHASUMS256.txt'],
-  ['npmmirror · npm 与 Node.js 国内镜像', 'https://npmmirror.com/'],
-  ['DeepSeek · API 地址与模型', 'https://api-docs.deepseek.com/zh-cn/'],
-  ['DeepSeek · 接入 Claude Code', 'https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/claude_code/'],
-  ['OpenAI · Codex CLI', 'https://learn.chatgpt.com/docs/codex/cli'],
-  ['Omics Skills · 部署说明', REPO + '/tree/main/skills/_meta/omics-environment-setup'],
+  ['TRAE · Skills 创建、导入与调用', 'https://docs.trae.cn/ide_skills'],
+  ['TRAE · IDE 连接 WSL 2', 'https://docs.trae.cn/ide_wsl'],
+  ['Microsoft · 安装 WSL', 'https://learn.microsoft.com/zh-cn/windows/wsl/install'],
+  ['Microsoft · WSL 命令', 'https://learn.microsoft.com/zh-cn/windows/wsl/basic-commands'],
+  ['Omics Skills · 环境部署', REPO + '/tree/main/skills/_meta/omics-environment-setup'],
   ['清华 · Ubuntu 镜像', 'https://mirrors.tuna.tsinghua.edu.cn/help/ubuntu/'],
-  ['清华 · PyPI 镜像', 'https://mirrors.tuna.tsinghua.edu.cn/help/pypi/'],
-  ['中科大 · PyPI 镜像', 'https://mirrors.ustc.edu.cn/help/pypi.html'],
-  ['Bioconductor · 官方镜像目录（含西湖、清华、中科大）', 'https://bioconductor.org/about/mirrors/'],
-  ['清华 · Conda 镜像', 'https://mirrors.tuna.tsinghua.edu.cn/help/anaconda/'],
+  ['中科大 · Ubuntu 镜像', 'https://mirrors.ustc.edu.cn/help/ubuntu.html'],
+  ['Bioconductor · 官方镜像目录', 'https://bioconductor.org/about/mirrors/'],
+  ['DeepSeek · 自定义 API（可选）', 'https://api-docs.deepseek.com/zh-cn/'],
 ];
 const STEPS = [
-  { id: 'prepare', name: '开始前的准备', sub: '认识这段安装旅程', tag: '准备', title: '准备好，迈出第一步。', desc: '把复杂的环境配置，拆成你能完成的小步骤。我们会陪你从 Windows 出发，一直到基础组学环境就绪。' },
-  { id: 'wsl', name: '安装 WSL', sub: '让 Windows 也能运行 Linux', tag: 'WINDOWS', title: '给 Windows，添一个 Linux 工作间。', desc: 'WSL 让你在 Windows 里使用 Linux。你的组学工具会在 Ubuntu 中运行，日常使用的 Windows 仍然在。', where: 'Windows PowerShell · 管理员', whereClass: 'windows', checks: ['已重启电脑，并能够打开 Ubuntu', 'wsl --list --verbose 中，Ubuntu 的 VERSION 显示为 2'], sections: [
-    { title: '以管理员身份打开 PowerShell', text: '点击 Windows 开始菜单，搜索 PowerShell，右键选择「以管理员身份运行」，在系统询问时选择「是」。看到 PS C:\\ 开头的提示符，就找对窗口了。', visual: 'powershell' },
-    { title: '安装 Ubuntu，然后按提示重启', text: '复制下面的命令，粘贴到 PowerShell，按 Enter。这里明确选择 Ubuntu 24.04；下载时间取决于网络。安装完成后保存其他工作，再手动重启电脑。', code: 'wsl --install -d Ubuntu-24.04', shell: 'PowerShell · 管理员', note: '已经安装了 Ubuntu 22.04 或更高版本？可以跳过安装，先用下一条命令检查现有发行版。不要卸载已有环境。' },
-    { title: '回来后，确认使用 WSL 2', text: '重启后再次打开 PowerShell，查看发行版列表。首次使用 Ubuntu 时，下一步会教你设置本地用户名。', code: 'wsl --list --verbose', shell: 'PowerShell', expected: 'NAME                STATE           VERSION\nUbuntu-24.04        Stopped         2', note: 'Stopped 只是当前没有启动；看见 VERSION 为 2 即符合这项要求。如果为 1，按官方 WSL 指引升级后再继续。' },
+  { id: 'prepare', name: '开始前的准备', sub: '先有助手，再准备环境', tag: '准备', title: '打开 TRAE，让 Agent 陪你起步。', desc: '先选好国内模型，再让 Agent 带你检查 Linux、加载 Omics Skills、部署 Python 和 R。整个过程在 TRAE 中完成。' },
+  { id: 'trae', name: '安装 TRAE', sub: '打开内置 Agent 工作台', tag: 'TRAE', title: '先把你的 Agent 助手准备好。', desc: 'TRAE 已内置 Agent。安装并登录后就可以打开助手窗口，无需另外部署一个 Agent 服务。', where: 'Windows · TRAE 中国版', whereClass: 'windows', checks: ['已安装并登录 TRAE 中国版', '已打开 Agent 窗口，并找到新建任务入口'], sections: [
+    { title: '下载 Windows 版并完成登录', text: '从中国官网下载适合 Windows x64 的安装包，安装后按界面提示完成初始化和登录。已经安装可直接打开。', link: ['打开 TRAE 中国官网 ↗', 'https://www.trae.cn/'] },
+    { title: '打开 Agent 窗口', text: '在 TRAE 的 IDE 窗口右上角点击「Agent」。进入后能看到「新建任务」等入口；右上角的「IDE」可返回文件和编辑器窗口。', note: '这里的 IDE 和 Agent 都属于 TRAE。旧版本入口可能不同，可对照官方图解。', link: ['查看 TRAE 官方快速开始 ↗', 'https://docs.trae.cn/ide_get-started-with-trae'] },
+    { title: '从一个本地任务开始', text: '点击「新建任务」，使用本机任务。有已有项目时可以选中它；尚未准备 Linux 项目也没关系，先在下一步选模型并验证对话，再让助手检查 WSL。', note: '后面的组学环境需要安装到自己的 WSL Ubuntu。请核对任务的执行位置，不要把云端任务结果当成本机安装结果。' },
   ], faq: [
-    ['安装卡在 0%，怎么办？', '先确认网络可访问 Microsoft 下载服务。官方还提供 web-download 安装方式：wsl --install --web-download -d Ubuntu-24.04。仅在尚未完成安装时尝试，并等待命令结束。'],
-    ['提示需要启用虚拟化，或出现 0x80370102', '打开任务管理器 → 性能 → CPU，查看「虚拟化」状态。若未启用，需要按电脑厂商说明进入 BIOS/UEFI 设置；不熟悉时请联系设备管理员。启用后重启，再按 Microsoft 排错文档操作。'],
-    ['我的列表里叫 Ubuntu，不叫 Ubuntu-24.04', '已有发行版可以继续使用。在 Ubuntu 里运行 cat /etc/os-release，确认版本至少为 22.04；不要为了改名字重装系统。'],
+    ['还需要 VS Code、Cursor 或 Claude Code 吗？', '这条路线直接使用 TRAE 内置 Agent，不需要额外安装这些客户端，也不需要为 Agent 单独安装 Node.js 或 npm。'],
+    ['必须创建自定义智能体吗？', '不用，先使用内置 Agent。Skills 为它提供分析方法和部署说明；熟悉流程后再按需要创建自定义智能体。'],
   ] },
-  { id: 'ubuntu', name: '设置 Ubuntu', sub: '创建你的 Linux 本地用户', tag: 'UBUNTU', title: '认识你的新工作间。', desc: '第一次打开 Ubuntu，只需要设置一个本地用户名和密码。它不是新的在线账号，也不用邮箱注册。', where: 'Ubuntu 终端', whereClass: 'linux', checks: ['已经创建 Linux 用户，并记住了密码', 'uname -m 输出 x86_64，Python 版本至少为 3.10'], sections: [
-    { title: '创建本地用户名和密码', text: '在开始菜单搜索并打开 Ubuntu。按提示输入用户名，例如 researcher，再设置密码并重复输入。用户名建议用小写英文字母。', expected: 'Enter new UNIX username: researcher\nNew password:\nRetype new password:', note: '输入密码时不会出现字符或星号，这是 Linux 的正常行为。直接输入后按 Enter。不要把密码填到这个网站。' },
-    { title: '安装教程需要的基础工具', text: '在 Ubuntu 窗口依次运行下面两行命令。出现 [sudo] password 时，输入刚才设置的 Linux 密码；询问是否继续时，核对后输入 Y。', code: 'sudo apt update\nsudo apt install python3 git curl ca-certificates wget', shell: 'Ubuntu · Bash', note: '这些是系统基础工具。Scanpy 和 Seurat 将由后面的部署脚本放到独立环境。' },
-    { title: '确认系统与 Python 版本', text: '当前部署流程面向 Linux x86_64。若输出 aarch64（ARM），请先停在这里；这份基础环境锁定文件不支持该架构。', code: 'uname -m\npython3 --version\ncat /etc/os-release', shell: 'Ubuntu · Bash', expected: 'x86_64\nPython 3.12.x\n… Ubuntu 24.04 …', note: '上面是示意输出，具体小版本可以不同；Ubuntu 至少 22.04，启动脚本所用 Python 至少 3.10。' },
+  { id: 'agent', name: '选择模型与 Agent', sub: '使用账号可用的国内模型', tag: 'AGENT & MODEL', title: '选好模型，就可以开始对话。', desc: '使用 TRAE 内置模型即可起步。模型负责理解任务，Agent 负责读取文件、调用工具并执行步骤。', where: 'TRAE · Agent 窗口', whereClass: 'linux', checks: ['已选中账号可用的国内模型，并收到正常回复', '已确认使用能够读取文件和运行终端工具的本地 Agent 任务'], sections: [
+    { title: '从输入框右下角选择模型', text: '点击当前模型名称，在内置模型列表中选择可用的 DeepSeek Flash，也可以选择其他适合任务的国内模型。截图中显示的名称是 DeepSeek-V4.1-Flash；可用列表与额度以自己的 TRAE 账号为准。', note: '使用内置模型无需另填 DeepSeek API Key。模型在服务端运行，不需要把模型权重下载到电脑。', link: ['查看 TRAE 官方模型说明 ↗', 'https://docs.trae.cn/ide_models'] },
+    { title: '让助手说明它能做什么', text: '复制下面的话到 Agent 对话框。收到回复后，查看它是否具备文件和终端工具；下一步会让它实际检查 WSL。', code: '你好，请用中文协助我在这台 Windows 电脑上准备 Omics Skills 分析环境。请说明当前任务是本地还是云端、能否读取本机文件和调用终端。先不要安装软件或修改文件；下一步我们先检查 WSL。', shell: 'TRAE · Agent 对话框', note: '这一步只确认助手可以对话。工具实际运行在哪里，要通过后面的真实执行结果核对。' },
+    { title: '可选：需要自己的 API 时再添加', optional: true, text: '如果内置模型已够用，跳过这一项。想使用自己购买的 DeepSeek API 额度时，再进入「设置 → 模型 → 添加模型」，选择 DeepSeek 服务商，填写自己的密钥并完成校验，然后在对话框选中新增模型。', note: '自定义 API 余额与 TRAE 内置模型额度分别计算。密钥只在自己的客户端填写。', link: ['查看自定义模型配置 ↗', 'https://docs.trae.cn/ide_models'] },
   ], faq: [
-    ['密码打不进去，也没有星号', '这是正常的隐藏输入。点击终端，直接输入密码，再按 Enter。若提示 incorrect password，检查大小写和输入法后重试。'],
-    ['sudo 提示没有权限', '请确认你正在使用首次创建的普通 Linux 用户。如果这是学校或单位预配的环境，联系管理员提供软件安装权限，不要盲目改系统权限。'],
-    ['apt 下载失败', '先确认电脑网络和系统时间正常，保留完整错误。重试 sudo apt update；如果是证书或网络策略错误，应先修复连接，不要关闭证书验证。'],
+    ['我的列表没有 DeepSeek-V4.1-Flash', '模型名、账号权限和套餐会变化。选当前可用的 DeepSeek Flash 或其他国内模型即可，不必因为名称不同重新安装软件。'],
+    ['能聊天，但不能执行命令', '确认任务运行在本机，并支持文件与终端工具。查看工具调用是否等待你的操作；如果工具不可用，先解决 Agent 的执行能力，再进入部署。'],
+    ['是否全程都不需要代理？', TRAE_NETWORK_NOTE],
   ] },
-  { id: 'mirrors', name: '配置镜像源', sub: '按软件类型选择下载来源', tag: 'DOWNLOAD SOURCES', title: '下载慢？换一个合适的来源。', desc: '镜像源是软件包的下载站。按软件类型选择一家即可；官方源速度正常时，也可以保持不变。', where: 'Ubuntu 终端；R 设置在部署完成后的 R 控制台', whereClass: 'linux', checks: ['已配置需要的镜像，或决定继续使用原来的源', '已了解换源范围：不会改写锁定环境或加速 GitHub / AI API'], faq: [
-    ['三家镜像可以随便互换吗？', '不能。Ubuntu、PyPI、Conda、CRAN 和 Bioconductor 的地址不同。此页西湖选项仅提供官方目录确认过的 Bioconductor 地址；Ubuntu 和 PyPI 请选择清华或中科大。'],
-    ['配置镜像后，下一步部署还是下载很慢', '现有 setup.py 使用 explicit 锁定文件中的完整包地址，Miniforge 也从固定 GitHub Release 下载。普通 pip、Conda 或 R 换源不会改写这些地址。本页不修改锁定文件、版本或校验值；部署仍慢时保留日志定位具体下载源。'],
-    ['镜像提示 404 或缺少旧版本', '先核对 Ubuntu 版本、软件类型和镜像同步状态。Bioconductor 的历史版本并非每家都保留；可以按已安装 R 对应的 Bioconductor 版本检查西湖目录，不要为了换源升级或降级分析环境。'],
-    ['如何恢复原来的源？', 'APT 用本页备份恢复命令；PyPI 会话变量随终端关闭而失效；R 设置可使用本页恢复命令或重新启动 R。页面默认不改写 .condarc、pip.conf 或 .Rprofile。'],
-    ['西湖镜像一定可以访问吗？', '地址列在 Bioconductor 官方镜像目录中，但本次从维护端直接访问超时或被拒绝，尚未确认实时可用。请在自己的网络测试，失败时换清华、中科大或官方源。'],
-  ] },
-  { id: 'vscode', name: '连接 VS Code', sub: '在熟悉的窗口里使用 Linux', tag: 'WORKSPACE', title: '把 VS Code，连接到 Ubuntu。', desc: 'VS Code 安装在 Windows，项目和分析工具放在 Linux。连接后，你就能在同一个窗口查看文件、打开终端。', where: 'Windows 安装 VS Code → Ubuntu 打开项目', whereClass: 'windows', checks: ['VS Code 左下角显示 WSL: Ubuntu（或对应版本名）', 'VS Code 终端中的 pwd 指向 /home/ 下的工作目录'], sections: [
-    { title: '安装 Windows 版 VS Code 和 WSL 扩展', text: '打开官方下载页，选择适合电脑的 Windows 安装包。安装时勾选 Add to PATH。启动 VS Code，按 Ctrl + Shift + X 打开扩展，搜索 WSL，安装 Microsoft 发布的 WSL 扩展。', link: ['下载 VS Code ↗', 'https://code.visualstudio.com/download'] },
-    { title: '从 Ubuntu 打开工作目录', text: '回到 Ubuntu 终端，依次运行下面三行。第一次会下载 VS Code Server，稍等片刻。最后一行的点表示「打开当前文件夹」。', code: 'mkdir -p ~/omics-workspace\ncd ~/omics-workspace\ncode .', shell: 'Ubuntu · Bash', visual: 'vscode' },
-    { title: '确认终端也在 Linux 中', text: '在 VS Code 菜单选择「终端 → 新建终端」，输入下面的命令。应看到 /home/你的用户名/omics-workspace。后续标注 Ubuntu 的命令，都在这个终端运行。', code: 'pwd\nuname -s', shell: 'VS Code · WSL 终端', expected: '/home/researcher/omics-workspace\nLinux', note: '如果提示符以 PS C:\\ 开头，说明仍在 Windows PowerShell。点击左下角远程连接图标，选择连接到 WSL，再打开新终端。' },
+  { id: 'wsl', name: '检查或安装 WSL', sub: '已有 Ubuntu 就继续使用', tag: 'WSL 2', title: '让 Agent 先看看，你有没有 Linux。', desc: '日常在 TRAE 中操作，组学工具实际运行在 WSL Ubuntu。先检查现有安装，再决定是否需要下载。', where: 'TRAE · Agent；首次安装时使用管理员 PowerShell', whereClass: 'windows', checks: ['已安装并能启动一个 Ubuntu 22.04 或更高版本', 'wsl --list --verbose 中，所选 Ubuntu 的 VERSION 为 2'], sections: [
+    { title: '先把这段检查要求交给 Agent', text: '让助手列出已安装的发行版。已有符合要求的 Ubuntu 就继续使用，不要因为名字不同重复安装。', code: '请只读检查这台电脑的 WSL 状态。在 Windows 终端运行 wsl --list --verbose，展示原始结果；若工具已在 WSL 中，请报告 WSL_DISTRO_NAME，并尝试通过 wsl.exe 获取列表。列出每个发行版的名称和 WSL 版本，再核对候选 Ubuntu 的 /etc/os-release。若有多个 Ubuntu，请让我选择要用的那个。现在不要安装、卸载或更改默认发行版。', shell: 'TRAE · Agent 对话框', note: '如果 Agent 无法访问 Windows 的 WSL 管理命令，在自己的 PowerShell 运行 wsl --list --verbose，把输出交给它。Stopped 表示尚未启动，不表示安装失败。' },
+    { title: '只有尚未安装时，再安装 Ubuntu', optional: true, text: '点击 Windows 开始菜单，搜索 PowerShell，右键选择「以管理员身份运行」。执行下面的命令，按提示保存工作并重启电脑。已有 Ubuntu 22.04+ 可跳过。', code: 'wsl --install -d Ubuntu-24.04', shell: 'Windows PowerShell · 管理员', note: '管理员确认、重启和首次设置密码需要你在电脑上完成。重启后回到 TRAE 和本教程继续。', link: ['查看 Microsoft WSL 安装说明 ↗', 'https://learn.microsoft.com/zh-cn/windows/wsl/install'] },
+    { title: '确认具体的发行版名称', text: '保留列表中你要使用的完整名称，例如 Ubuntu-22.04 或 Ubuntu-24.04。之后的检查、下载和部署都要落在同一个发行版和 Linux 用户中。', code: 'wsl --list --verbose', shell: 'Windows PowerShell · 检查', expected: '例如：Ubuntu-22.04    Running    2\n或：Ubuntu-24.04    Stopped    2', note: 'Ubuntu 和 Ubuntu-22.04 可以是两个独立环境。不要只看 Linux 字样就认为选对了。' },
   ], faq: [
-    ['code: command not found', '确认 Windows 版 VS Code 已安装且启用了 Add to PATH。关闭并重新打开 Ubuntu 终端后重试；也可在 VS Code 按 Ctrl + Shift + P，搜索 WSL 并选择连接，再打开 /home/ 下的目录。'],
-    ['左下角没有 WSL 标识', '检查 WSL 扩展是否来自 Microsoft 且已启用。按 Ctrl + Shift + P 搜索 WSL，选择连接到 WSL；普通 Windows 窗口不能代替远程连接窗口。'],
-    ['弹出 Enter SSH Connection Command，或 uname 无法识别', '按 Esc 退出 SSH 输入框。按 Ctrl + Shift + P，选择 WSL: Connect to WSL；没有这个选项时，先安装 Microsoft 发布的 WSL 扩展。看到左下角 WSL: Ubuntu 后重新新建终端，再运行 uname -s。PS 开头的终端仍是 PowerShell；即使当前路径包含 \\\\wsl.localhost，也不代表编辑器已连接 WSL。'],
-    ['文件应该放在哪里？', '分析环境和项目优先放在 ~/omics-workspace 等 Linux 文件系统目录。WSL 也能访问 /mnt/c 等 Windows 磁盘，但不要把本教程的环境安装目录改到那里。'],
+    ['列表里有两个 Ubuntu，怎么选？', '选择包含自己项目和用户目录的发行版，让 Agent 分别只读检查再确认。不要为了统一名字卸载任何发行版。'],
+    ['安装卡在 0% 或下载失败', '保留错误，检查 Microsoft 下载服务是否可访问。尚未完成安装时，可参考官方文档使用 wsl --install --web-download -d Ubuntu-24.04。'],
+    ['提示需要启用虚拟化', '任务管理器 → 性能 → CPU 可查看虚拟化状态。未启用时按电脑厂商说明设置，或联系设备管理员；Agent 不能代替 BIOS/UEFI 中的操作。'],
   ] },
-  { id: 'ai', name: '配置 AI 助手', sub: '选择工具并完成连接', tag: 'AI ASSISTANT', title: '给工作间，配一位 AI 助手。', desc: '选择一条路线，页面会跟着切换。Claude Code + DeepSeek 使用 DeepSeek API；Codex 使用它自己的登录方式。', where: 'VS Code · WSL 终端', whereClass: 'linux', checks: ['所选工具的版本命令可以正常运行', '已在工作目录启动工具，并收到一条正常回复'], faq: [
-    ['claude 或 codex: command not found', '先查看安装器输出的 PATH 提示，按提示操作，再关闭并重新打开终端。Claude 原生安装通常位于 ~/.local/bin；可运行 ~/.local/bin/claude --version 检查。'],
-    ['claude.ai 下载超时或返回 403', '在 Claude Code 路线下切换到「国内下载备用：npm 镜像」。Ubuntu、pip 镜像不会加速 claude.ai；DeepSeek API Key 也不能解决安装包下载失败。npm 镜像是否可用仍取决于网络与同步状态。'],
-    ['install.cmd 能粘贴到这里吗？', '不能。本教程在 WSL Ubuntu 中安装。install.cmd 是 Windows CMD 命令，install.ps1 是 PowerShell 脚本；WSL 原生安装使用 install.sh。Windows 中已有 Node.js 也不能代替 WSL 内的 Linux 版 Node.js。'],
-    ['npm 报 EACCES、EBADENGINE 或找不到原生包', 'EACCES：核对安装命令是否带 --prefix "$HOME/.local"，不要加 sudo。EBADENGINE：确认 WSL 中 Node.js 至少为 22。缺少平台包：不要省略 --include=optional；检查镜像同步情况和完整错误，必要时将该条命令的 registry 改为 https://registry.npmjs.org 再试。'],
-    ['Node.js 镜像返回 404 或校验失败', '停止执行后续步骤。404 可能是镜像尚未同步；可将下载命令的 npmmirror.com/mirrors/node 换为 nodejs.org/dist，保留版本和 SHA256 校验。两处都无法下载时先解决网络，不要跳过校验。'],
-    ['DeepSeek 返回 401 或余额错误', '401 通常需要检查密钥是否正确、是否撤销，以及当前终端是否重新配置了令牌。余额错误需到 DeepSeek 官方控制台核对 API 余额。网页聊天账号的可用次数不代表 API 额度。'],
-    ['关闭终端后，DeepSeek 配置失效了', '本教程使用当前会话环境变量，没有把密钥写入磁盘。重新打开终端后，需要再次配置地址、模型和密钥，然后在同一终端启动 claude。'],
-    ['DeepSeek 路线仍然提示登录或不支持模型', '确认环境变量设置和启动 claude 在同一个 Ubuntu 终端，并查看页面中的 DeepSeek 官方接入说明。模型名与客户端行为会更新；本地网站没有实际验证你的 API 账号，不要把密钥发给维护者。'],
-  ] },
-  { id: 'skills', name: '准备 Omics Skills', sub: '接上你的分析工具箱', tag: 'OMICS SKILLS', title: '把分析方法，放进工作目录。', desc: '先下载 Skills 仓库。它包含分析说明、脚本和环境配置；下载完成后，还需要下一步创建真正的分析环境。', where: 'VS Code · WSL 终端', whereClass: 'linux', checks: ['仓库下载成功，能看到环境部署 SKILL.md', '已了解当前 AI 路线如何读取这些说明'], sections: [
-    { title: '获取公开仓库', text: '在 WSL 终端依次执行。首次下载公开仓库通常不需要注册 GitHub。若目录已存在，先检查内容，不要覆盖或删除。', code: 'cd ~/omics-workspace\ngit clone https://github.com/ning2978/codex-omics-skills.git\ncd codex-omics-skills', shell: 'VS Code · WSL 终端' },
-    { title: '确认部署入口存在', text: '这份说明将负责创建独立的 Python 和 R 环境。命令应打印出相对路径；如果提示文件不存在，先检查当前工作目录。', code: 'ls skills/_meta/omics-environment-setup/SKILL.md\npython3 scripts/install_skills.py --list', shell: 'VS Code · WSL 终端', note: '安装 Skills 文件不等于安装分析软件。先完成文件准备，再运行下一步的环境部署。' },
+  { id: 'ubuntu', name: '确认 Linux 工作位置', sub: '固定发行版、用户和目录', tag: 'LINUX WORKSPACE', title: '先确认位置，再让 Agent 动手。', desc: '用真实工具输出确认目标 Ubuntu、普通用户、Linux 架构与工作目录。Agent 可以在 Linux 工作区运行，也可以从 Windows 明确调用指定 WSL。', where: 'TRAE · Agent 执行检查', whereClass: 'linux', checks: ['已确认目标发行版、普通 Linux 用户与 /home/ 下的项目目录', 'Agent 实际执行结果为 Linux x86_64，Python 至少为 3.10'], sections: [
+    { title: '第一次启动？先完成本地用户设置', text: '刚安装 Ubuntu 时，在开始菜单打开对应 Ubuntu，按提示设置小写英文用户名和密码。已有普通用户和项目可以直接使用。输入密码时不显示字符是正常现象。', note: '如果当前用户是 root，让 Agent 先查找已有普通用户；不要把本教程的分析环境放到 /root 或 Windows 挂载目录里，也不要直接改动已有项目。' },
+    { title: '复制检查要求，填入自己的发行版和目录', text: '把下方两个方括号替换成前一步确认的完整名称与自己的目录，再交给 Agent。已有项目无需搬迁；没有目录时先让助手给出创建建议。', code: '目标发行版：[填写前一步的完整名称]\n目标 Linux 工作目录：[填写已有的 /home/用户名/项目目录，或说明尚未创建]\n请只读确认目标发行版、Linux 用户及工作目录。用终端实际执行 pwd、uname -s、uname -m、whoami、python3 --version、cat /etc/os-release，并读取 WSL_DISTRO_NAME，展示原始结果。若工具从 Windows 发起，每次都明确指定 wsl -d 的目标发行版、-u 的普通用户和 --cd 的 Linux 目录，不使用默认发行版。发现目录不存在或身份不对时先停下来说明。', shell: 'TRAE · Agent 对话框', expected: '发行版：与你选定的名称一致\n用户：你的普通 Linux 用户\npwd：你的 /home/ 下项目目录\nuname -s：Linux\nuname -m：x86_64\nPython：3.10 或更新版本', note: 'Linux 字样本身不能确认具体 WSL 发行版。请展开实际工具调用记录，核对调用参数和输出。' },
+    { title: '缺少基础工具时，让助手补齐', text: '检查通过后，按需要让 Agent 在刚确认的 Ubuntu 中安装 Python、Git 和下载工具。需要 sudo 时，由你在相应终端输入密码。', code: '请在刚确认的目标 Ubuntu 和普通用户下检查 python3、git、curl、wget、ca-certificates。仅补齐缺少的系统基础工具，先说明安装内容；不要安装分析包或改动已有 Python/R 环境。如果下载失败，先记录错误，参考下一步的镜像源说明。', shell: 'TRAE · Agent 对话框' },
+    { title: '可选：在 TRAE 的 IDE 窗口直接连接 WSL', optional: true, text: '需要查看 Linux 文件时，可以返回 TRAE 的 IDE 窗口，在远程资源管理器选择 WSL，连接目标 Ubuntu，再打开项目目录。也可继续让 Agent 通过明确的 wsl 调用完成任务。', note: '只打开 WSL 终端或浏览 \\wsl.localhost 文件夹，不代表整个编辑器已远程连接。误进 SSH 命令输入框时按 Esc 返回。', link: ['查看 TRAE WSL 官方图解 ↗', 'https://docs.trae.cn/ide_wsl'] },
   ], faq: [
-    ['git clone 下载失败', '先用浏览器确认 GitHub 仓库可以访问，再检查终端网络。出现目标目录已存在时，先进入目录查看 README；不要执行删除命令。如果浏览器能下载 ZIP，也可以解压到 Linux 工作目录，再打开其中的仓库目录。'],
-    ['安装器显示 SKIP，返回非零状态', '仓库安装器默认保留已有同名目录。这不一定是损坏；检查它列出的目标路径和文件版本。不要为了消除提示直接使用 --force，它会覆盖同名文件。'],
-    ['为什么 Claude Code 没有列出所有 Skills？', '当前仓库采用分类目录并按 Codex 方式发布，本向导不假设 Claude Code 自动发现全部嵌套 Skills。Claude 路线使用明确的文件路径读取部署说明；完整技能自动发现还需单独适配和测试。'],
+    ['提示 uname 不是命令', '命令正在 PowerShell 中运行。让 Agent 使用明确指定发行版的 wsl 调用，或在 TRAE 中连接目标 WSL 后打开 Linux 终端。不要在 PowerShell 里直接运行 Bash 命令。'],
+    ['每次执行都跑到另一个 Ubuntu', '检查工具调用是否只有 wsl 而没有 -d。要求每次明确指定发行版、用户和工作目录，新对话也重新核对；不必修改系统默认发行版。'],
+    ['输出 aarch64 或 Python 版本太低', '本教程当前的环境锁定文件需要 Linux x86_64，启动脚本需要 Python 3.10+。先解决兼容性再部署，不要让 Agent 忽略检查。'],
   ] },
-  { id: 'environment', name: '部署基础环境', sub: '创建、验证，再开始分析', tag: 'ENVIRONMENT', title: '最后，把分析环境准备好。', desc: '复用 Omics Skills 的部署脚本，创建独立环境并运行合成数据测试。你可以先查看计划，再开始安装。', where: 'VS Code · WSL 终端（仓库目录）', whereClass: 'linux', checks: ['create 成功结束，report.json 中 operation 为 create、status 为 PASS', '已保存报告中的实际解释器路径，并检查生成的测试图'], sections: [
-    { title: '进入仓库，查看安装计划', text: '计划会写入报告，不会安装依赖。检查报告中的平台兼容性和建议操作，再继续。每次使用带时间标记的新报告目录。', code: 'cd ~/omics-workspace/codex-omics-skills\npython3 skills/_meta/omics-environment-setup/scripts/setup.py plan --profile both --report-dir "$HOME/omics-reports/plan-$(date +%Y%m%d-%H%M%S)"', shell: 'VS Code · WSL 终端', note: 'plan 或 inspect 的 PASS 只表示检查成功，不代表环境已经能运行分析。' },
-    { title: '创建 Python 和 R 基础环境', text: '此命令会下载 Miniforge 和分析依赖，安装到 Linux 用户目录，并自动执行运行验证。所需时间与空间取决于网络和包体积；运行期间保持终端开启。', code: 'python3 skills/_meta/omics-environment-setup/scripts/setup.py create --profile both --bootstrap --install-dir "$HOME/omics-environments" --report-dir "$HOME/omics-reports/create-$(date +%Y%m%d-%H%M%S)"', shell: 'VS Code · WSL 终端', note: '部署过程不需要 sudo，也不会升级你已有的分析环境。若遇到失败，保留日志，先排查原因，再使用新的安装和报告目录重试。' },
-    { title: '打开报告，核对结果', text: '在 VS Code 打开 ~/omics-reports，进入刚生成的 create-日期时间 文件夹，查看 report.json。确认 operation 是 create、status 是 PASS，保存 environments 中记录的实际 Python/R 路径，并检查报告目录中的测试 PNG。', code: 'code "$HOME/omics-reports"', shell: 'VS Code · WSL 终端', expected: '核对本次 create 报告：\n• operation = create\n• status = PASS\n• environments 中的实际环境与解释器路径\n• 联合检查结果与测试图', note: '基础环境覆盖 Scanpy、Seurat、桥接、DotPlot 和 edgeR。scVI、cell2location、Monocle2、GPU 等专用方法仍需自己的环境检查。' },
+  { id: 'mirrors', name: '按需配置镜像', sub: '清华、中科大、西湖', tag: 'DOWNLOAD SOURCES', title: '下载慢时，再选择镜像来源。', desc: '可以把本页对应软件的配置交给 Agent，在已确认的 Ubuntu 中执行。下载正常时保持原源即可。', where: '目标 WSL Ubuntu；R 镜像在环境部署后设置', whereClass: 'linux', checks: ['已配置需要的镜像，或决定继续使用原来的源', '已了解换源范围：不会改写锁定环境或加速 GitHub / AI API'], faq: [
+    ['可以让 Agent 自动选择镜像吗？', '可以让它检查网络并提出建议。执行前核对 Ubuntu 版本与软件类型，保留备份、签名和固定依赖版本。'],
+    ['西湖镜像能用于所有下载吗？', '本页仅收录官方目录确认的西湖 Bioconductor 地址，实时可用性待确认。Ubuntu 和 PyPI 请选择清华或中科大。'],
+    ['换源后部署仍然下载失败', '当前部署脚本使用 GitHub Miniforge 和 Anaconda 的完整锁定包 URL，普通换源不会覆盖这些地址。保留日志定位失败的下载，不跳过校验。'],
+  ] },
+  { id: 'skills', name: '加载 Omics Skills', sub: '把方法与脚本交给 Agent', tag: 'OMICS SKILLS', title: '让 Agent 读到你的分析方法。', desc: '先准备完整仓库，再加载环境部署 Skill。确认助手读到了真实文件和引用资源，下一步才开始安装分析环境。', where: 'TRAE · Agent；文件位于目标 WSL 项目中', whereClass: 'linux', checks: ['已准备完整 Skills 仓库，部署脚本和引用文件都可读取', 'Agent 已实际读取部署 SKILL.md，并说明调用路径和部署计划'], sections: [
+    { title: '让 Agent 获取或复用完整仓库', text: '将下面的要求发送给助手。已有仓库直接复用；首次下载会访问 GitHub。', code: '请在刚确认的 WSL 发行版、普通用户和工作目录中准备 https://github.com/ning2978/codex-omics-skills 。已有仓库则检查并复用，不覆盖、不强制更新；没有才克隆完整仓库。展示仓库绝对路径和当前版本，确认 skills/_meta/omics-environment-setup/SKILL.md、scripts/setup.py（位于该 Skill 内）及其引用文件存在。现在只准备文件，不安装分析环境。', shell: 'TRAE · Agent 对话框', note: '下载 ZIP 也要保留完整目录结构，包含 scripts、references、锁定文件和 _shared 等资源。仓库名中的 codex 不要求安装 Codex 客户端。', link: ['打开 Omics Skills 仓库 ↗', REPO] },
+    { title: '先明确加载部署 Skill', text: '让 Agent 通过文件工具读取说明及引用内容。这条方式可以直接开始当前任务；是否已经登记为自动发现的技能，要看下一项的技能列表。', code: '请从刚确认的完整仓库加载 skills/_meta/omics-environment-setup/SKILL.md，并实际读取它引用的 environment-installation-policy/SKILL.md 和 references/platforms.md。说明你实际读取的文件路径、目标 WSL 发行版、部署脚本路径及 Python/R 基础环境的计划。现在只读取与说明，暂不执行 create。', shell: 'TRAE · Agent 对话框', note: '只回复「已加载」还不够。应能列出真实读取的文件和对应的脚本路径；缺少引用文件时先补齐仓库。' },
+    { title: '可选：登记到 TRAE 的技能列表', optional: true, text: '需要后续任务自动调用时，在「设置 → 技能与命令 → 创建」中选择项目技能，可导入 SKILL.md 或包含它的 ZIP。也可以使用当前版本支持的 .agents/skills 导入设置。添加后在技能列表确认已启用，再新建任务验证调用。', note: 'Omics 仓库有跨目录引用，不要仅移动一个 SKILL.md。让 Agent 检查导入后的路径、脚本和共享资源；未验证前继续使用完整仓库中的明确路径。没有声称全部 Skills 已自动注册。', link: ['查看 TRAE 官方 Skills 导入说明 ↗', 'https://docs.trae.cn/ide_skills'] },
   ], faq: [
-    ['下载失败或校验失败', '保留当前报告目录，查看日志中的下载地址和错误，先解决网络或证书问题。SHA256 不匹配时不要执行下载文件，也不要关闭校验；修复后使用新的安装和报告目录重建。'],
-    ['显示 PASS，但分析仍然报错', '先确认 PASS 来自 create 或 verify，而不是 plan/inspect。后续分析必须使用报告中记录的准确解释器；默认 python 或 Rscript 不一定指向新环境。专用方法还需 runtime-preflight。'],
-    ['我的电脑是 ARM 或内存不够', '当前向导的 Linux 锁定环境只支持 x86_64。若硬件不符合要求，先停止安装并考虑兼容的服务器；环境能安装也不代表能运行任意规模的数据。'],
+    ['加载 Skill 就等于装好了 Scanpy 或 Seurat 吗？', '还没有。Skill 提供方法、脚本和约束，实际 Python/R 依赖需要下一步创建并验证。'],
+    ['Agent 看不到 WSL 中的文件', '让它通过指定发行版读取文件，或在 TRAE IDE 中打开对应 WSL 项目。若内置文件工具只能看到 Windows 文件，请如实使用 WSL 终端读取，不要凭空声称已经读过。'],
+    ['导入后提示缺少脚本或 references', '通常是只导入了 SKILL.md，或移动位置破坏了相对路径。保留完整仓库并使用原路径，待所有引用校验通过后再使用自动加载。'],
   ] },
-  { id: 'finish', name: '完成与下一步', sub: '带着记录，开始你的研究', tag: 'READY FOR WHAT’S NEXT', title: '准备工作，有了清晰的记录。', desc: '下面是你亲自确认过的安装步骤。网站不会读取电脑的真实环境；实际可用状态，请以部署脚本的报告为准。' },
+  { id: 'environment', name: '部署并验收环境', sub: '让 Agent 执行，按报告验收', tag: 'ENVIRONMENT', title: '把部署交给 Agent，把结果核对清楚。', desc: '复用 Skills 里的固定部署流程：先生成计划，再创建独立环境，最后检查报告和测试图。', where: 'TRAE · Agent → 同一目标 WSL Ubuntu', whereClass: 'linux', checks: ['create 成功结束，report.json 中 operation 为 create、status 为 PASS', '已保存报告中的实际解释器路径，并检查生成的测试图'], sections: [
+    { title: '先生成部署计划', text: '发送下面的要求，让 Agent 使用仓库原有脚本生成计划并解释结果。计划会写入报告，不安装分析依赖。', code: '请按已加载的 omics-environment-setup Skill，在已确认的 WSL 发行版、普通用户和仓库目录运行 setup.py plan --profile both，使用位于仓库外的新报告目录。展示真实执行结果、平台兼容性、安装位置、所需空间和下载来源。先解释计划，暂不执行 create。', shell: 'TRAE · Agent 对话框', note: 'plan / inspect 的 PASS 只说明检查通过，不能证明分析环境可用。' },
+    { title: '确认计划后，让 Agent 创建环境', text: '核对目标路径和计划后，把下面的话发送给助手。它会下载依赖并运行合成数据测试，耗时取决于网络与电脑性能。', code: '按刚才核对的计划，开始部署 Python 和 R 基础环境。使用同一 WSL 发行版和普通用户，按 Skill 运行 setup.py create --profile both --bootstrap；安装目录放在 Linux 用户目录下的独立位置，报告写到仓库外的新目录。保留原有环境、锁定版本和 SHA256 校验。完成后展示真实退出状态、report.json 的 operation/status、实际 Python/R 解释器路径和测试 PNG；失败时保留日志并说明原因。', shell: 'TRAE · Agent 对话框', note: '下载来源仍包含 GitHub 与 Anaconda。遇到错误先定位下载地址，不让助手用任意升级依赖的方式绕过问题。' },
+    { title: '打开报告和测试图，确认完成', text: '让 Agent 给出本次报告的绝对路径，并在 TRAE 中打开 report.json 和测试 PNG。核对以下结果后再勾选完成。', expected: '本次报告：operation = create\n实际结果：status = PASS\nenvironments：保存准确的 Python / R 解释器路径\n测试图：已打开并检查生成的 PNG', note: '基础环境覆盖的检查以报告为准。GPU、scVI、cell2location、Monocle2 等专用方法需要后续单独检查。' },
+  ], faq: [
+    ['Agent 说完成了，但没有报告', '要求展示实际命令、退出状态、报告路径与内容。没有 create 报告及测试结果，不要勾选部署完成。'],
+    ['显示 PASS，分析仍然失败', '先确认 PASS 来自 create / verify，再检查分析是否使用报告中的准确解释器。专用方法需要读取对应 Skill 并执行运行前检查。'],
+    ['需要把整台电脑交给自动审批吗？', '不需要。本教程没有要求修改全局审批设置；按当前客户端的提示处理具体操作即可。'],
+  ] },
+  { id: 'finish', name: '完成与下一步', sub: '保存报告，开始分析', tag: 'READY FOR SCIENCE', title: '为你的分析工作台，留一份记录。', desc: '这份进度来自你的手动确认。真正的环境可用性，请以实际部署报告、解释器路径和测试结果为准。' },
 ];
-const TRAE_NETWORK_NOTE = '本路线使用 TRAE 中国版接入 DeepSeek 官方 API，面向国内网络直接使用。网站与 Skills 仍托管在 GitHub，环境部署也有境外下载来源；完整流程尚未完成无代理验收。';
-function stepForRoute(step, route) {
-  if (route !== 'trae') return step;
-  if (step.id === 'vscode') return {
-    ...step, name: '连接 TRAE', title: '在 TRAE 里，打开你的 Linux 工作间。',
-    desc: 'TRAE 集成编辑器、终端和 AI 助手。连接已有的 WSL Ubuntu 后，文件管理、对话和运行命令都在这里完成。',
-    where: 'Windows 安装 TRAE → TRAE 连接 WSL 2',
-    checks: ['TRAE 左下角显示已连接的 WSL Ubuntu', 'TRAE 终端中 uname -s 为 Linux，pwd 指向 /home/ 下的工作目录'],
-    sections: [
-      { title: '从中国官网下载 Windows 版 TRAE', text: '打开 trae.cn，下载适合这台 x64 电脑的 Windows 安装包并安装，启动后按界面提示登录。下一步会在 TRAE 的模型设置中接入自己的 DeepSeek API。', note: '本路线使用 TRAE 自带的 AI 助手，不需要另装 VS Code、Cursor、Claude Code、Node.js 或 npm。', link: ['打开 TRAE 中国官网 ↗', 'https://www.trae.cn/'] },
-      { title: '连接已经安装好的 Ubuntu', text: '在 TRAE 的远程资源管理器选择 WSL，刷新列表，找到前面已安装的 Ubuntu，选择在新窗口连接。左下角出现对应的 WSL 发行版后继续。', note: '请选择 WSL 入口；如果弹出 SSH 命令输入框，按 Esc 返回。TRAE 目前支持 WSL 2，已有 Ubuntu 无需重复安装。仅打开一个 WSL 终端，不代表整个编辑器已连接 WSL。', link: ['查看 TRAE 官方 WSL 操作图解 ↗', 'https://docs.trae.cn/ide_wsl'] },
-      { title: '在 TRAE 中准备 Linux 工作目录', text: '连接成功后，在菜单选择「终端 → 新建终端」。复制下面的命令，确认系统显示 Linux；再通过「文件 → 打开文件夹」打开刚打印的 /home/你的用户名/omics-workspace。', code: 'uname -s\nmkdir -p ~/omics-workspace\ncd ~/omics-workspace\npwd', shell: 'TRAE · WSL 终端', expected: 'Linux\n/home/你的用户名/omics-workspace', note: '如果显示 Windows 路径、PowerShell 或不是 Linux，先回到上一步检查 WSL 连接。打开文件夹后重新开一个终端，再确认 pwd。' },
-    ],
-    faq: [
-      ['TRAE 找不到 WSL 或 Ubuntu', '先在 Windows PowerShell 运行 wsl --list --verbose，确认 Ubuntu 存在且 VERSION 为 2，再刷新 TRAE 的 WSL 列表。具体入口以官方操作图解与当前版本为准。'],
-      ['终端能看到 Linux 文件，为什么 uname 还是报错？', '先看提示符：PS 开头仍是 PowerShell，通过 \\\\wsl.localhost 打开文件夹不等于 WSL 远程连接。回到 TRAE 的远程资源管理器，选择 WSL 下的 Ubuntu 连接；确认左下角的发行版标识后重新新建终端。若当前软件是 VS Code，可用 Ctrl + Shift + P → WSL: Connect to WSL。'],
-      ['已经装了 VS Code 或 Cursor，需要卸载吗？', '不需要。直接在 TRAE 中连接现有 WSL 和打开原来的 Linux 项目目录即可，原文件与分析环境不需要搬迁。'],
-      ['TRAE 下载或登录失败', '确认打开的是 trae.cn，并记录当前网络的错误。学校或单位网络策略、服务状态也可能影响连接；不要把更换编辑器当作所有下载问题已经解决。'],
-    ],
-  };
-  if (step.id === 'ai') return {
-    ...step, title: '在 TRAE 里，直接接入 DeepSeek。',
-    desc: '在模型设置中添加自己的 DeepSeek API Key，选中模型并收到回复，再确认助手的工具实际运行在 WSL 中。',
-    where: 'TRAE · 已连接 WSL 的项目窗口',
-    checks: ['已选择可用的国内模型，并收到正常回复', '助手实际执行的 uname -s 为 Linux，pwd 指向 /home/ 下的项目目录'],
-    faq: [
-      ['还需要注册 Claude 或安装 Node.js 吗？', '这条路线直接在 TRAE 中接入 DeepSeek，不需要 Claude 账号、Claude Code、Node.js 或 npm。需要自己的 DeepSeek API Key 和可用的 API 余额。'],
-      ['我想先用 TRAE 内置模型，可以吗？', '可以。在对话框选择账号当前可用的内置国内模型，就可以先跳过 API 配置。内置模型的可用范围与额度由 TRAE 决定；它与自己购买的 DeepSeek API 余额分开计算。'],
-      ['添加模型失败，或提示 401 / 余额不足', '401 时检查 API Key 是否完整、有效，复制时是否带了多余空格；余额不足时到 DeepSeek 开放平台核对 API 余额。DeepSeek 网页聊天的可用次数不代表 API 额度。不要把密钥发给维护者。'],
-      ['模型不存在，或自定义接口返回 404', '对照 DeepSeek 官方文档核对模型 ID。使用本页备用配置时，API 格式选 OpenAI Chat Completions，开启完整 URL，填写 https://api.deepseek.com/chat/completions；不要填 Claude Code 使用的 /anthropic 地址。'],
-      ['助手能聊天，但没有运行终端命令', '使用当前版本支持文件与终端工具的 Agent 模式，核对执行命令的提示。要求它展示真实工具结果，不能只凭文字声称 Linux。若工具仍在 Windows 执行，先解决 WSL 工作区连接。'],
-      ['在 TRAE 里就一定不需要代理了吗？', TRAE_NETWORK_NOTE],
-      ['添加成功了，对话却仍显示其他模型', '回到对话框的模型选择器，选中刚添加的模型。可给自定义模型起名「我的 DeepSeek API」，便于和名称相似的 TRAE 内置模型区分。'],
-    ],
-  };
-  if (step.id === 'skills' || step.id === 'environment') {
-    const routed = { ...step, where: step.where.replace('VS Code', 'TRAE'), sections: step.sections.map(section => ({ ...section, text: section.text.replaceAll('VS Code', 'TRAE'), shell: section.shell?.replace('VS Code', 'TRAE') })) };
-    if (step.id === 'skills') {
-      routed.sections[0] = { ...routed.sections[0], note: '此下载仍访问 GitHub，TRAE 不会自动更换下载源。若国内直连失败，需作者提供已核验的国内仓库或发布包；目前未配置这样的备用地址。' };
-      routed.faq = [...step.faq.filter(([q]) => !q.includes('Claude')), ['TRAE 会自动发现所有 Skills 吗？', '当前仓库按分类目录发布，本教程先让助手读取明确的 SKILL.md 路径。没有声称全部 Skills 已自动注册；按方法运行仍需匹配实际环境。']];
-    } else {
-      routed.sections[1] = { ...routed.sections[1], note: '这一步仍会访问 GitHub 的 Miniforge 安装包和 Anaconda 的固定包地址。普通换源不会覆盖这些地址，尚未通过完整无代理安装验收。失败时保留日志，不要随意更换依赖版本或跳过校验。' };
-      routed.sections[2] = { ...routed.sections[2], code: undefined, shell: undefined, text: '在已连接 WSL 的 TRAE 窗口中，通过「文件 → 打开文件夹」打开 /home/你的用户名/omics-reports，找到本次 create-日期时间 目录。打开 report.json，核对 operation=create、status=PASS，保存 environments 中的解释器路径，并查看测试 PNG。' };
-    }
-    return routed;
-  }
-  return step;
-}
-function claudeInstallSections(method) {
-  if (method !== 'npm') return [
-    { title: '使用官方原生安装器', text: '适合能正常访问 claude.ai 及后续下载地址的网络。不需要 Node.js 或 npm。若下载超时、返回 403，切换上方「国内下载备用：npm 镜像」。两种方式选一种；已经能运行 claude --version 就跳过安装。', code: 'curl -fsSL https://claude.ai/install.sh | bash', shell: 'VS Code · WSL 终端', note: '这里使用 Linux 的 install.sh。不要在 WSL 中运行 Windows CMD 的 install.cmd 或 PowerShell 的 install.ps1。', link: ['查看 Claude Code 安装说明 ↗', 'https://code.claude.com/docs/en/setup'] },
-  ];
-  return [
-    { title: '先检查 WSL 里的 Node.js 和 npm', text: 'Node.js 安装包自带 npm，无需单独下载 npm。Claude Code 当前 npm 包要求 Node.js 22 或更新版本，下面提供 Node.js 24 LTS。先运行检查：已有符合要求的 Linux 版 Node.js 和 npm，可跳过下一项下载。', code: 'uname -s\ncommand -v node\nnode -v\nnpm -v', shell: 'VS Code · WSL 终端', expected: '操作系统：Linux\nNode.js：v22 或更新版本\nnpm：显示版本号', note: 'DeepSeek 指南仍写 Node.js 18+；安装版本要求以 Claude Code 当前文档及 npm 包为准。command not found 表示尚未安装；node 路径若在 /mnt/c，请改用 Linux 版。', link: ['核对 Claude Code 的 npm 要求 ↗', 'https://code.claude.com/docs/en/setup#install-with-npm'] },
-    { title: '缺少 Node.js？下载 Linux 版到用户目录', text: '下面适用于本教程的 Ubuntu x86_64，使用 npmmirror 下载 Node.js 24.21.0 LTS，并对照 Node.js 官方 SHA256 校验后解压。整段复制到 WSL 终端，等待执行结束；已有符合要求的 Node.js 可跳过。', code: `(
-  set -e
-  [ "$(uname -s)" = Linux ] && [ "$(uname -m)" = x86_64 ] || { echo '请在 x86_64 的 WSL Ubuntu 中执行。'; exit 1; }
-  command -v xz >/dev/null || { echo '请先运行 sudo apt install xz-utils，再重试。'; exit 1; }
-  node_dir="$HOME/.local/opt/node-v24.21.0-linux-x64"
-  if [ -e "$node_dir" ]; then
-    echo '目标目录已存在，不覆盖。请先执行下一项的版本检查；异常时保留目录并排查。'
-    exit 0
-  fi
-  node_download_dir=$(mktemp -d)
-  cd "$node_download_dir"
-  curl -fL --connect-timeout 20 --retry 2 -o node.tar.xz 'https://npmmirror.com/mirrors/node/v24.21.0/node-v24.21.0-linux-x64.tar.xz'
-  printf '%s  %s\\n' 'fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6' 'node.tar.xz' | sha256sum -c -
-  mkdir -p "$HOME/.local/opt"
-  tar -xJf node.tar.xz -C "$HOME/.local/opt"
-  printf '已解压；临时下载目录：%s\\n' "$node_download_dir"
-)`, shell: 'VS Code · WSL 终端', note: '校验显示 OK、解压无报错后再继续。版本和校验值核对于 2026-10-13；失败时不会继续解压。没有覆盖系统 Node.js，也不需要 sudo 安装 Node.js。', link: ['核对 Node.js 官方 SHA256 ↗', 'https://nodejs.org/dist/v24.21.0/SHASUMS256.txt'] },
-    { title: '让终端找到 Node.js，并确认版本', text: '下面把用户目录加入当前终端的 PATH，并向 ~/.bashrc 追加同一行，使以后新开的 Bash 终端也能找到工具。不会重复追加或清空原文件。若刚才下载了 Node.js，应显示 v24.21.0。', code: `export PATH="$HOME/.local/opt/node-v24.21.0-linux-x64/bin:$HOME/.local/bin:$PATH"
-grep -Fqx 'export PATH="$HOME/.local/opt/node-v24.21.0-linux-x64/bin:$HOME/.local/bin:$PATH"' "$HOME/.bashrc" || printf '\\n%s\\n' 'export PATH="$HOME/.local/opt/node-v24.21.0-linux-x64/bin:$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-node -v
-npm -v
-node -p 'process.platform'`, shell: 'VS Code · WSL 终端', expected: 'Node.js：v22 或更新版本\nnpm：显示版本号\n平台：linux', note: '必须看到 linux。Windows 中安装的 Node.js 不算这一步完成；如果仍然提示找不到命令，先排查上一项下载与解压结果。', link: ['了解 Node.js 版本 ↗', 'https://nodejs.org/en/download'] },
-    { title: '通过 npm 国内镜像安装 Claude Code', text: '确认上面的版本检查通过后，运行整段命令。工具安装在自己的 ~/.local 目录，不需要 sudo。--registry 只为这一次安装指定 npmmirror，不修改 npm 的全局源设置。', code: `if node -e 'process.exit(process.platform === "linux" && Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)'; then
-  npm install -g --prefix "$HOME/.local" @anthropic-ai/claude-code@latest --registry=https://registry.npmmirror.com --include=optional && claude --version
-else
-  echo '请先在 WSL 中准备 Node.js 22 或更新版本。'
-fi`, shell: 'VS Code · WSL 终端', note: '镜像可能延迟同步，不能保证所有网络都能成功下载。不要省略 optional 依赖；以后用同一条 npm 命令更新。安装完成只表示工具就绪，DeepSeek 接入仍需下面的独立配置。', link: ['查看 npmmirror 使用说明 ↗', 'https://npmmirror.com/'] },
-  ];
-}
-function aiSections(route, installMethod = 'native') {
-  if (route === 'trae') return [
-    { title: '准备自己的 DeepSeek API Key', text: '前往 DeepSeek 开放平台注册或登录，在 API Keys 页面创建密钥，并确认有可用的 API 余额。接下来只在自己的 TRAE 客户端填写密钥。', note: '接入后按 DeepSeek API 用量计费；DeepSeek 网页聊天和 TRAE 内置模型的额度不通用。本教程网站不接收或保存密钥。', link: ['打开 DeepSeek 开放平台 ↗', 'https://platform.deepseek.com/'] },
-    { title: '在 TRAE 添加 DeepSeek 模型', text: '打开「设置 → 模型 → 添加模型」，选择 DeepSeek 服务商；若有计费方式，选择与自己的 API Key 对应的方式。选择可用模型，填写 API Key，然后点击添加，等待连接校验成功。', expected: '服务商：DeepSeek\n模型：优先 deepseek-flash，以当前官方可用模型为准\nAPI Key：你在 DeepSeek 开放平台创建的密钥', note: '若列表没有所需模型，可选择「其他模型」填写模型 ID，或使用下面的自定义配置。已添加成功则直接跳到第 4 项。', link: ['查看 TRAE 官方添加模型说明 ↗', 'https://docs.trae.cn/ide_models'] },
-    { title: '备用：找不到服务商或模型时，使用自定义配置', text: '在「添加模型」中选择自定义模型，按下方逐项填写。开启「完整 URL」后，使用完整请求地址；高级参数先保留默认值。填写完成后点击添加并等待校验结果。', expected: 'API 格式：OpenAI Chat Completions\n完整 URL：开启\n请求地址：https://api.deepseek.com/chat/completions\n模型 ID：deepseek-flash\n显示名称：我的 DeepSeek API\nAPI Key：你自己的 DeepSeek API Key', note: '如果界面只有基础地址（Base URL），则填写 https://api.deepseek.com，让客户端补齐请求路径。模型 ID 核对于 2026-10-13，后续以官方文档为准。', link: ['核对 DeepSeek 官方地址与模型 ↗', 'https://api-docs.deepseek.com/zh-cn/'] },
-    { title: '选中新添加的模型，完成一次对话', text: '回到已连接 WSL 的项目窗口，在 AI 对话框的模型选择器中选中刚添加的 DeepSeek 模型。发送下面的话，收到正常回复后，再检查工具执行位置。', code: '你好，请用中文回复。先不要安装软件，也不要修改文件。', shell: 'TRAE · 对话框', note: '请选择自己添加的模型条目，避免与同名内置模型混淆。模型添加成功只验证配置，收到回复才确认本次对话可用。' },
-    { title: '确认助手的终端也在 WSL 中', text: '使用支持终端工具的 Agent 模式发送下面的要求。查看实际工具输出，确认是 Linux 和 /home/ 下的项目目录；若执行位置错误，先修复连接。', code: '请通过终端工具实际执行 pwd、uname -s 和 python3 --version，并展示原始输出。只检查环境，不安装软件、不修改文件。如果不在 WSL Linux 的 /home/ 项目目录中，请停止并说明原因。', shell: 'TRAE · Agent 对话框', expected: 'pwd：/home/你的用户名/omics-workspace\nuname -s：Linux\npython3 --version：至少 3.10', note: '能聊天不等于能在正确的环境执行命令，必须核对工具输出。' },
-  ];
-  if (route === 'codex') return [
-    { title: '在 WSL 中安装 Codex', text: '使用官方 Linux 安装入口。以下命令会下载并执行 OpenAI 提供的安装器；请先通过官方说明确认来源。', code: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh', shell: 'VS Code · WSL 终端', link: ['查看 Codex 官方说明 ↗', 'https://learn.chatgpt.com/docs/codex/cli'] },
-    { title: '验证版本，然后登录', text: '先确认版本命令成功，再从工作目录启动 Codex，按照工具提示选择可用的登录方式。账号权限和费用以官方界面为准。', code: 'codex --version\ncd ~/omics-workspace\ncodex', shell: 'VS Code · WSL 终端' },
-    { title: '发送第一条消息', text: '将下面的话发送到 Codex 对话框，收到回复后再继续。', code: '请用中文说明当前工作目录和操作系统。先不要安装软件，也不要修改文件。', shell: 'Codex 对话框', note: '这一步只验证工具能对话；组学软件将在后面单独安装。' },
-  ];
-  return [
-    ...claudeInstallSections(installMethod),
-    { title: '确认版本，准备 DeepSeek API Key', text: '先运行版本检查。再前往 DeepSeek 开放平台注册或登录，创建 API Key，并查看 API 余额。密钥只在自己的 Ubuntu 终端输入，本网站没有密钥输入框。', code: 'claude --version', shell: 'VS Code · WSL 终端', link: ['打开 DeepSeek 开放平台 ↗', 'https://platform.deepseek.com/'] },
-    { title: '按 DeepSeek 官方指南设置接入参数', text: '以下地址、模型和上下文设置按 2026-10-13 的 DeepSeek「接入 Claude Code」指南整理。虽然电脑是 Windows，这条路线运行在 WSL 内，因此使用指南的 Linux 命令。在同一个 Ubuntu 终端完成后续密钥输入和启动。', code: 'export ANTHROPIC_BASE_URL="https://api.deepseek.com/anthropic"\nexport ANTHROPIC_MODEL="deepseek-flash[1m]"\nexport ANTHROPIC_DEFAULT_OPUS_MODEL="deepseek-flash[1m]"\nexport ANTHROPIC_DEFAULT_SONNET_MODEL="deepseek-flash[1m]"\nexport ANTHROPIC_DEFAULT_HAIKU_MODEL="deepseek-flash"\nexport CLAUDE_CODE_SUBAGENT_MODEL="deepseek-flash"\nexport CLAUDE_CODE_EFFORT_LEVEL="max"\nexport CLAUDE_CODE_AUTO_COMPACT_WINDOW="786432"', shell: 'VS Code · WSL 终端', note: '这些参数只作用于当前终端。接入后使用 DeepSeek 模型和 API 额度；以后若官方调整模型名或参数，请以原文为准。', link: ['查看 DeepSeek 官方 Claude Code 配置指南 ↗', 'https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/claude_code/'] },
-    { title: '在本机隐藏输入密钥', text: '这里设置的仍是官方指南中的 ANTHROPIC_AUTH_TOKEN，只把直接填写密钥改为隐藏输入。执行下面的命令，粘贴你自己的 DeepSeek API Key，再按 Enter。输入时不会显示字符，也不把密钥文本写进命令历史。', code: 'read -rsp "DeepSeek API Key: " ANTHROPIC_AUTH_TOKEN', shell: 'VS Code · WSL 终端', note: '完成输入后再运行下面一段。令牌只保留在当前终端会话中，关闭后需要重新输入；不要把密钥发到网站、聊天或 GitHub。' },
-    { title: '启动助手，试着打个招呼', text: '在同一终端执行，按客户端提示完成首次设置。进入对话后发送「你好，请用中文回复」。收到正常回答后确认本步完成。', code: 'printf "\\n"\nexport ANTHROPIC_AUTH_TOKEN\ncd ~/omics-workspace\nclaude', shell: 'VS Code · WSL 终端', note: '版本号只确认安装成功；收到回复才说明这次 API 连接可用。此操作会使用你的 DeepSeek API 额度，本网站不会替你调用 API。' },
-  ];
-}
-function skillSections(route) {
-  if (route === 'trae') return [
-    { title: '在 TRAE 打开 Skills 仓库', text: '使用已连接 WSL 的 TRAE，通过「文件 → 打开文件夹」打开 /home/你的用户名/omics-workspace/codex-omics-skills。确认侧栏能看到 skills 和 scripts，再让助手读取下面的部署入口。', note: '打开文件夹不等于安装分析环境；后面仍需运行部署脚本。' },
-    { title: '把明确的部署入口交给 TRAE', text: '把下面的话发送到 TRAE 的 Agent 对话框。先检查它是否读到了文件并在 WSL 中生成计划；也可以按下一步教程手动执行固定命令。', code: '请读取 skills/_meta/omics-environment-setup/SKILL.md 及其引用文件。先用真实终端输出确认 WSL Linux x86_64 和当前仓库目录，再生成 Python 与 R 基础环境部署计划。列出需要访问的下载地址及国内直连风险；不要自动设置代理，不要安装软件，暂不执行 create，也不要改写锁定版本或校验值。', shell: 'TRAE · Agent 对话框', note: '这条路线通过明确文件路径读取说明；完整 Skills 自动发现与实际分析仍需逐项验收。' },
-  ];
-  if (route === 'codex') return [
-    { title: '按仓库安装器准备 Skills', text: '先预览安装位置，再执行安装。默认位置为 CODEX_HOME/skills，未设置时为 ~/.codex/skills。安装器保留分类和共享资源结构。', code: 'python3 scripts/install_skills.py --dry-run\npython3 scripts/install_skills.py', shell: 'VS Code · WSL 终端', note: '安装后重新开启 Codex 对话。如当前客户端没有自动发现嵌套 Skill，可明确让它读取下面的仓库内说明文件。' },
-    { title: '把部署说明交给 Codex', text: '在仓库目录启动 Codex，把下面的话发送到对话框。也可以直接执行下一步的固定部署命令。', code: '请读取 skills/_meta/omics-environment-setup/SKILL.md 及其引用的安装策略，先检查当前 WSL 平台并生成 Python 与 R 基础环境部署计划。请解释计划，暂不执行 create。', shell: 'Codex 对话框' },
-  ];
-  return [
-    { title: '让 Claude Code 读取明确的部署入口', text: '在仓库目录启动 claude，再把下面的话发送到对话框。此处直接读取说明，不依赖 Claude 自动发现仓库内所有 Skills。', code: '请读取 skills/_meta/omics-environment-setup/SKILL.md 及其引用的安装策略，先检查当前 WSL 平台并生成 Python 与 R 基础环境部署计划。请解释计划，暂不执行 create。', shell: 'Claude Code 对话框', note: '当前仓库按 Codex 方式发布；完整 Claude Skills 注册尚未做兼容验收。下一步的部署脚本可直接执行，不依赖技能注册。' },
-  ];
-}
