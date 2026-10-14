@@ -23,7 +23,8 @@ function restoreState(saved) {
   }
   result.os = ['win11','win10','older'].includes(saved.os) ? saved.os : 'win11';
   result.arch = ['x64','arm','unknown'].includes(saved.arch) ? saved.arch : 'x64';
-  result.mirror = ['tuna','ustc'].includes(saved.mirror) ? saved.mirror : 'tuna';
+  const aptChoices = saved.preparationVersion === PREPARATION_VERSION ? ['tuna','ustc','westlake'] : ['tuna','ustc'];
+  result.mirror = aptChoices.includes(saved.mirror) ? saved.mirror : 'tuna';
   result.biocMirror = ['tuna','ustc','westlake'].includes(saved.biocMirror) ? saved.biocMirror : (['tuna','ustc','westlake'].includes(saved.mirror) ? saved.mirror : 'tuna');
   result.ubuntuRelease = ['22.04','24.04'].includes(saved.ubuntuRelease) ? saved.ubuntuRelease : '24.04';
   if (!sameFlow) result.legacyGuideProgress = saved;
@@ -74,7 +75,8 @@ function sectionsHTML(sections) {
       (item.items ? '<ul class="action-list">'+item.items.map(entry=>'<li><strong>'+escapeHTML(entry.title)+'</strong><span>'+escapeHTML(entry.text)+'</span></li>').join('')+'</ul>' : '')+
       (item.expected ? '<div class="expected"><strong>对照参考 · 请以实际结果为准</strong><pre>'+escapeHTML(item.expected)+'</pre></div>' : '')+
       (item.note ? '<p class="inline-note">ⓘ &nbsp;'+escapeHTML(item.note)+'</p>' : '')+
-      (item.link ? '<a class="out-link" href="'+escapeHTML(item.link[1])+'" target="_blank" rel="noreferrer">'+escapeHTML(item.link[0])+'</a>' : '')+'</div>';
+      (item.link ? '<a class="out-link" href="'+escapeHTML(item.link[1])+'" target="_blank" rel="noreferrer">'+escapeHTML(item.link[0])+'</a>' : '')+
+      (item.links ? '<div class="resource-links">'+item.links.map(([label,url])=>'<a class="out-link" href="'+escapeHTML(url)+'" target="_blank" rel="noreferrer">'+escapeHTML(label)+'</a>').join('')+'</div>' : '')+'</div>';
     if(item.optional) return '<details class="help-inline optional-step"><summary>'+escapeHTML(item.title)+'</summary>'+content+'</details>';
     return '<section class="instruction"><div class="instruction-head"><span class="count">'+String(index+1).padStart(2,'0')+'</span><h2>'+escapeHTML(item.title)+'</h2></div>'+content+'</section>';
   }).join('');
@@ -84,14 +86,14 @@ function journeyHTML() {
   return '<div class="notice green"><span class="symbol">✦</span><p><strong>一条路线，在 TRAE 里完成</strong><br>打开 Agent → 选择国内模型 → 准备 WSL → 加载 Skills → 部署并验收环境</p></div>';
 }
 function mirrorPicker() {
-  return `<div class="route-picker mirror-picker" role="group" aria-label="Ubuntu 与 PyPI 备用镜像">${Object.entries(MIRRORS).filter(([,m])=>m.apt).map(([key,m])=>`<button class="route-card ${state.mirror===key?'active':''}" data-mirror="${key}" aria-pressed="${state.mirror===key}"><strong>${escapeHTML(m.name)}</strong><small>Ubuntu · PyPI</small></button>`).join('')}</div><div class="settings-row"><label>按 Agent 检查到的实际 Ubuntu 版本选择<select id="ubuntu-release"><option value="24.04" ${state.ubuntuRelease==='24.04'?'selected':''}>Ubuntu 24.04 · ubuntu.sources</option><option value="22.04" ${state.ubuntuRelease==='22.04'?'selected':''}>Ubuntu 22.04 · sources.list</option></select></label></div><p class="quiet">其他版本或自定义源文件布局，请按官方帮助操作。切换这里只改变参考说明，不会修改电脑或完成记录。</p>`;
+  return `<div class="route-picker mirror-picker" role="group" aria-label="Ubuntu 与 PyPI 备用镜像">${Object.entries(MIRRORS).filter(([,m])=>m.apt).map(([key,m])=>`<button class="route-card ${state.mirror===key?'active':''}" data-mirror="${key}" aria-pressed="${state.mirror===key}"><strong>${escapeHTML(m.name)}</strong><small>${m.pip?'Ubuntu · PyPI':'Ubuntu 软件包'}</small></button>`).join('')}</div><div class="settings-row"><label>按 Agent 检查到的实际 Ubuntu 版本选择<select id="ubuntu-release"><option value="24.04" ${state.ubuntuRelease==='24.04'?'selected':''}>Ubuntu 24.04 · ubuntu.sources</option><option value="22.04" ${state.ubuntuRelease==='22.04'?'selected':''}>Ubuntu 22.04 · sources.list</option></select></label></div><p class="quiet">其他版本或自定义源文件布局，请按官方帮助操作。切换这里只改变参考说明，不会修改电脑或完成记录。</p>`;
 }
 function mirrorRecovery() {
   const file = state.ubuntuRelease==='22.04'?'/etc/apt/sources.list':'/etc/apt/sources.list.d/ubuntu.sources';
   return `<details class="help-inline"><summary>需要撤销 APT 换源？展开恢复命令</summary><p class="inline-note">仅适用于使用下方 .omics-backup 备份方式的配置。Agent 若另存了备份，请使用准备记录中的实际路径。恢复前先核对备份内容；备份文件会保留。</p>${codeBlock(`if [ -f "${file}.omics-backup" ]; then\n  sudo cp -a -- "${file}.omics-backup" "${file}"\n  sudo apt update\nelse\n  printf '%s\\n' '没有备份，不做修改。'\nfi`,'Ubuntu · Bash · 恢复 APT')}</details>`;
 }
 function mirrorReferenceHTML() {
-  return `<details id="mirror-reference" class="help-inline reference-panel" ${mirrorHelpOpen?'open':''}><summary>下载有问题？查看清华 / 中科大备用配置</summary><div class="reference-body">${mirrorPicker()}${sectionsHTML(mirrorSections(state.mirror,state.ubuntuRelease))}${mirrorRecovery()}</div></details>`;
+  return `<details id="mirror-reference" class="help-inline reference-panel" ${mirrorHelpOpen?'open':''}><summary>下载有问题？查看清华 / 西湖 / 中科大备用配置</summary><div class="reference-body">${mirrorPicker()}${sectionsHTML(mirrorSections(state.mirror,state.ubuntuRelease))}${mirrorRecovery()}</div></details>`;
 }
 function biocReferenceHTML() {
   const picker = `<div class="route-picker mirror-picker" role="group" aria-label="部署后的 Bioconductor 镜像">${Object.entries(MIRRORS).map(([key,m])=>`<button class="route-card ${state.biocMirror===key?'active':''}" data-bioc-mirror="${key}" aria-pressed="${state.biocMirror===key}"><strong>${escapeHTML(m.name)}</strong><small>Bioconductor${key==='westlake'?' · 需实测':''}</small></button>`).join('')}</div>`;
@@ -180,7 +182,7 @@ document.addEventListener('click',async event => {
     return;
   }
   if (button.dataset.mirror) {
-    if (!['tuna','ustc'].includes(button.dataset.mirror)) return;
+    if (!['tuna','ustc','westlake'].includes(button.dataset.mirror)) return;
     state.mirror = button.dataset.mirror; mirrorHelpOpen = true; save(); render(); return;
   }
   if (button.dataset.biocMirror) {
@@ -205,7 +207,7 @@ document.addEventListener('click',async event => {
     case 'close': $('#help-dialog').close(); break;
     case 'pick-step': $('#step-nav .step-link').focus(); $('#step-nav').scrollIntoView({block:'nearest'}); toast('点击步骤名称即可跳转，浏览不会标记完成。'); break;
     case 'system-help': openDialog('查看你的 Windows 和处理器','<p>按 Windows + R，输入 <strong>winver</strong> 并按 Enter，查看 Windows 版本及内部版本号。</p><p>再打开「设置 → 系统 → 系统信息 / 关于」，查看「系统类型」。本教程的部署环境需要<strong>基于 x64 的处理器</strong>。</p><p>Windows 10 需要版本 2004、内部版本 19041 或更高；Windows 11 可继续。ARM 处理器暂不适用这份环境锁定配置。</p>'); break;
-    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不自动上传日志、不自动安装软件。浏览器保存安装进度；反馈草稿只在当前页面暂存。点击前往 GitHub 时会把你预览的反馈带到公开 Issues 编辑页，由你确认提交。TRAE 技能自动发现、账号连接与国内直连全流程仍需在实际电脑验收。</p><p>网站版本 0.7.1。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
+    case 'sources': openDialog('资料来源与版本',`<p>基础教程核对日期：2026-10-13；Ubuntu 国内下载与软件源补充核对：2026-10-14。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不自动上传日志、不自动安装软件。浏览器保存安装进度；反馈草稿只在当前页面暂存。点击前往 GitHub 时会把你预览的反馈带到公开 Issues 编辑页，由你确认提交。TRAE 技能自动发现、账号连接与国内直连全流程仍需在实际电脑验收。</p><p>网站版本 0.7.2。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
     case 'download': downloadProgress(); break;
     case 'reset': openDialog('重置这份安装进度？','<p>只清除这个浏览器中保存的路线和勾选记录，不影响电脑上已经安装的软件或任何分析数据。</p><div class="bottom-actions"><button class="button-secondary" data-action="close">保留进度</button><button class="button-primary" data-action="confirm-reset">重置进度</button></div>'); break;
     case 'confirm-reset': state=freshState(); save(); $('#help-dialog').close(); go('prepare'); toast('进度已重置，已安装的软件不受影响。'); break;

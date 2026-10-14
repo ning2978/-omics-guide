@@ -1,9 +1,16 @@
 /* 教程内容与界面分离；命令仅展示和复制，网站不执行本机安装。 */
 const REPO = 'https://github.com/ning2978/codex-omics-skills';
+const UBUNTU_WSL = {
+  file: 'ubuntu-24.04.5-wsl-amd64.wsl',
+  sha256: 'bb415d824822c4b878125729af451a5d18fb13d1cf5cbed9a7393ad64ac6039e',
+  primary: 'https://mirrors.tuna.tsinghua.edu.cn/ubuntu-releases/24.04/',
+  fallback: 'https://mirrors.ustc.edu.cn/ubuntu-releases/24.04/',
+  officialChecksums: 'https://releases.ubuntu.com/24.04/SHA256SUMS',
+};
 const MIRRORS = {
   tuna: { name: '清华大学', scope: 'Ubuntu · PyPI · Bioconductor', apt: 'https://mirrors.tuna.tsinghua.edu.cn/ubuntu/', pip: 'https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple', bioc: 'https://mirrors.tuna.tsinghua.edu.cn/bioconductor', help: 'https://mirrors.tuna.tsinghua.edu.cn/help/ubuntu/' },
   ustc: { name: '中国科学技术大学', scope: 'Ubuntu · PyPI · Bioconductor', apt: 'https://mirrors.ustc.edu.cn/ubuntu/', pip: 'https://mirrors.ustc.edu.cn/pypi/simple', bioc: 'https://mirrors.ustc.edu.cn/bioc/', help: 'https://mirrors.ustc.edu.cn/help/ubuntu.html' },
-  westlake: { name: '西湖大学', scope: 'Bioconductor · 可用性待确认', bioc: 'https://mirrors.westlake.edu.cn/bioconductor', help: 'https://bioconductor.org/about/mirrors/' },
+  westlake: { name: '西湖大学', scope: 'Ubuntu · Bioconductor', apt: 'https://mirrors.westlake.edu.cn/ubuntu/', bioc: 'https://mirrors.westlake.edu.cn/bioconductor', help: 'https://mirrors.westlake.edu.cn/posts/ubuntu_help.html' },
 };
 function mirrorSections(key, release) {
   const m = MIRRORS[key] || MIRRORS.tuna;
@@ -12,9 +19,9 @@ function mirrorSections(key, release) {
   if (m.apt) parts.push(
     { title: `Ubuntu ${release}：先备份，再换源`, text: '先运行 cat /etc/os-release 确认版本，再使用上面的版本选项。命令只替换指定文件中的 Ubuntu 普通归档地址，保留发行版代号、签名、安全更新源和第三方源。已有镜像地址请按官方帮助核对。', code: `if [ -f "${file}" ]; then\n  if [ ! -e "${file}.omics-backup" ]; then\n    sudo cp -a -- "${file}" "${file}.omics-backup"\n  fi\n  if [ -f "${file}.omics-backup" ]; then\n    sudo sed -i -E 's@https?://([a-z][a-z]\\.)?archive\\.ubuntu\\.com/ubuntu/?@${m.apt}@g' "${file}"\n    sudo apt update\n  fi\nelse\n  printf '%s\\n' '未找到对应源文件，请核对 Ubuntu 版本与官方帮助。'\nfi`, shell: 'Ubuntu · Bash', note: '首次备份保留为 .omics-backup。不要同时套用两个版本配置；安全更新源仍访问 Ubuntu 官方地址。', link: [`查看${m.name} Ubuntu 帮助 ↗`,m.help] },
     { title: '确认地址和下载结果', text: '下面只显示源地址。确认其中出现所选镜像，并确认上一步 apt update 没有下载或签名错误。', code: `grep -E '^(URIs:|deb )' "${file}"`, shell: 'Ubuntu · Bash', expected: `普通软件源应包含：${m.apt}\n安全更新源保留原设置` },
-    { title: '以后需要 pip 下载时，再指定 PyPI 镜像', text: '本步不需要安装 Python 分析包。后续 Skill 确实使用 pip 时，让 Agent 在对应环境的实际安装命令中显式指定下方 --index-url 参数；不要依赖另一个终端里设置过的临时变量。', code: `--index-url ${m.pip}`, shell: 'pip 下载参数 · 不是独立命令', note: '把这项参数交给 Agent，和部署报告对应的 Python、Skill 要求的包名与版本一起使用。保持原版本及校验要求，不使用系统 Python 强行安装，不使用 sudo pip 或 --break-system-packages。实际下载成功才算可用。', link: ['查看 PyPI 镜像帮助 ↗',key==='ustc'?'https://mirrors.ustc.edu.cn/help/pypi.html':'https://mirrors.tuna.tsinghua.edu.cn/help/pypi/'] },
   );
-  else parts.push({ title: '西湖镜像用于部署后的 Bioconductor', text: 'Ubuntu 和 PyPI 请选择清华或中科大。西湖 Bioconductor 配置在第 8 步的可选说明中；本教程不推测西湖其他软件源路径。', link: ['查看官方镜像目录 ↗',m.help] });
+  if (m.pip) parts.push({ title: '以后需要 pip 下载时，再指定 PyPI 镜像', text: '本步不需要安装 Python 分析包。后续 Skill 确实使用 pip 时，让 Agent 在对应环境的实际安装命令中显式指定下方 --index-url 参数；不要依赖另一个终端里设置过的临时变量。', code: `--index-url ${m.pip}`, shell: 'pip 下载参数 · 不是独立命令', note: '把这项参数交给 Agent，和部署报告对应的 Python、Skill 要求的包名与版本一起使用。保持原版本及校验要求，不使用系统 Python 强行安装，不使用 sudo pip 或 --break-system-packages。实际下载成功才算可用。', link: ['查看 PyPI 镜像帮助 ↗',key==='ustc'?'https://mirrors.ustc.edu.cn/help/pypi.html':'https://mirrors.tuna.tsinghua.edu.cn/help/pypi/'] });
+  else parts.push({ title: '西湖在这里用于 Ubuntu 软件包', text: '已核对西湖 Ubuntu 源及 24.04 更新索引。需要 PyPI 时请选择清华或中科大，本页不提供未经确认的西湖 PyPI 地址；Bioconductor 设置仍在第 8 步。', link: ['查看西湖 Ubuntu 使用帮助 ↗',m.help] });
   parts.push(
     { title: 'Conda 与锁定环境：普通换源并不覆盖', text: '当前 setup.py 读取 explicit 锁定文件中的完整包 URL；Miniforge 从固定 GitHub Release 下载。仅修改 .condarc 不会替换这些地址。这里不改写版本或校验值，也不承诺加速下一步的锁定环境部署。', note: '普通 conda create 的镜像配置见帮助。本项目的镜像部署需另行实现地址映射、校验保留、缺包处理和安装验收。', link: ['了解 Conda 镜像 ↗',key==='ustc'?'https://mirrors.ustc.edu.cn/help/anaconda.html':'https://mirrors.tuna.tsinghua.edu.cn/help/anaconda/'] },
   );
@@ -37,6 +44,11 @@ const SOURCES = [
   ['TRAE · IDE 连接 WSL 2', 'https://docs.trae.cn/ide_wsl'],
   ['Microsoft · 安装 WSL', 'https://learn.microsoft.com/zh-cn/windows/wsl/install'],
   ['Microsoft · WSL 命令', 'https://learn.microsoft.com/zh-cn/windows/wsl/basic-commands'],
+  ['Ubuntu · 从本地 .wsl 文件安装（WSL 2.4.10+）', 'https://ubuntu.com/wsl/docs/latest/howto/install-ubuntu-wsl2/'],
+  ['Ubuntu · 官方安装文件校验值', UBUNTU_WSL.officialChecksums],
+  ['清华 · Ubuntu 24.04 安装镜像目录', UBUNTU_WSL.primary],
+  ['中科大 · Ubuntu 24.04 安装镜像目录', UBUNTU_WSL.fallback],
+  ['西湖 · Ubuntu 软件源使用帮助', MIRRORS.westlake.help],
   ['Omics Skills · 环境部署', REPO + '/tree/main/skills/_meta/omics-environment-setup'],
   ['清华 · Ubuntu 镜像', 'https://mirrors.tuna.tsinghua.edu.cn/help/ubuntu/'],
   ['中科大 · Ubuntu 镜像', 'https://mirrors.ustc.edu.cn/help/ubuntu.html'],
@@ -63,22 +75,25 @@ const STEPS = [
     ['能聊天，但不能执行命令', '确认任务运行在本机，并支持文件与终端工具。查看工具调用是否等待你的操作；如果工具不可用，先解决 Agent 的执行能力，再进入部署。'],
     ['是否全程都不需要代理？', TRAE_NETWORK_NOTE],
   ] },
-  { id: 'wsl', name: '让 Agent 安装 WSL', sub: '先检查，缺少时直接安装', tag: 'WSL 2', title: '把 WSL 的检查和安装，交给 Agent。', desc: '把下面的话复制到 TRAE 本地 Agent，让它检查电脑并按需发起 WSL 和 Ubuntu 安装。已有可用环境就继续使用。', where: 'TRAE · 本地 Agent；按提示处理 Windows 管理员确认', whereClass: 'windows', checks: ['已安装并能启动一个 Ubuntu 22.04 或更高版本', 'wsl --list --verbose 中，所选 Ubuntu 的 VERSION 为 2'], sections: [
-    { title: '复制这一段，交给 Agent 开始', text: '点击「复制指令」，粘贴到 TRAE 的本地 Agent 任务中发送。已有 Ubuntu 的用户也用这一段，助手会先检查再决定是否安装。', code: '请在这台电脑上实际检查并按需安装 WSL 2 + Ubuntu。\n\n先确认 Windows 兼容性和已有安装。有 Ubuntu 22.04+、WSL 2 就复用；多个候选让我选择，旧版或异常安装先诊断。\n\n确认未安装 Ubuntu 且满足要求时，执行微软官方命令：\nwsl --install -d Ubuntu-24.04 --no-launch\n\n需要管理员权限时尝试发起确认；无法执行就给手动步骤。保留已有环境、数据和默认设置，不自动转换或重启；用户名、密码由我在本地设置。\n\n展示真实结果，告诉我当前进度和下一步。只有核对 Ubuntu 版本、WSL 2 且能启动后，才能报告本步完成。', shell: 'TRAE · Agent 对话框', format: 'prompt', note: '首次下载使用 Microsoft 官方渠道。遇到网络或权限问题时，让 Agent 说明具体原因和下一步。' },
+  { id: 'wsl', name: '让 Agent 安装 WSL', sub: 'Ubuntu 从国内镜像下载', tag: 'WSL 2', title: 'Ubuntu 从国内下载，安装交给 Agent。', desc: '先复用已有环境。需要新装时，从清华下载 Ubuntu 24.04 LTS 的 WSL 文件，中科大作为备用；下载校验通过后再安装。', where: 'TRAE · 本地 Agent；按提示处理 Windows 管理员确认', whereClass: 'windows', checks: ['已安装并能启动一个 Ubuntu 22.04 或更高版本', 'wsl --list --verbose 中，所选 Ubuntu 的 VERSION 为 2'], sections: [
+    { title: '复制这一段，交给 Agent 开始', text: '点击「复制指令」，粘贴到 TRAE 的本地 Agent 任务中。助手会先检查，再按需下载；你不必自己挑安装文件。', code: `请实际检查并按需安装 WSL 2 + Ubuntu，Ubuntu 安装文件不要从 GitHub 下载。\n\n先检查 Windows、x64 架构和已有 Ubuntu；兼容环境直接复用，多候选让我选择。缺少 WSL 时通过 Microsoft Store 安装，按需运行 wsl --install --no-distribution；旧版经 Store 更新。不使用 --web-download。新装 .wsl 文件前确认 WSL 程序版本至少 2.4.10，且支持 --from-file。\n\n需要新装 Ubuntu 时，下载：\n${UBUNTU_WSL.primary}${UBUNTU_WSL.file}\n失败改用同名文件：\n${UBUNTU_WSL.fallback}${UBUNTU_WSL.file}\n下载后计算 SHA256，必须等于：\n${UBUNTU_WSL.sha256}\n不匹配或下载失败就停止，不跳过校验、不自动换成其他文件。\n\n确认没有同名发行版后，用 wsl --install --from-file 加实际文件完整路径和 --no-launch 安装。保留已有环境和默认设置，不自动转换或重启；管理员确认、首次用户名和密码由我在本机完成。展示真实下载与校验结果，核对 Ubuntu 版本、WSL 2 和能否启动，再报告完成。`, shell: 'TRAE · Agent 对话框', format: 'prompt', note: 'Ubuntu 大文件走国内镜像；WSL 组件仍由微软提供。新文件安装要求 WSL 程序版本 2.4.10+，它与列表中的“VERSION 2”含义不同。' },
     { title: '按提示配合必要操作', text: '助手会告诉你当前需要做哪一项。已有环境验收通过时，可以直接进入下一步。', items: [
       { title: '管理员确认', text: 'Windows 弹窗时，核对是本次 WSL 安装再确认；没有管理员权限时联系设备管理员。' },
       { title: '保存工作后重启', text: '仅在系统要求时重启。回来后打开 TRAE 和本页，使用下方「继续安装」指令。' },
-      { title: '首次设置 Ubuntu 用户', text: '安装完成后，从开始菜单打开对应 Ubuntu，按提示设置用户名和密码。密码输入时不显示字符，已有用户可跳过。' },
-    ], note: '安装指令暂不自动打开 Ubuntu，首次用户设置由你在本地完成。密码不需要发给 Agent。' },
+      { title: '首次设置 Ubuntu 用户', text: '让 Agent 给出启动已安装 Ubuntu 的命令，在本地终端执行并设置用户名和密码。也可从开始菜单打开已有入口；没有入口不代表安装失败。密码输入时不显示字符，已有用户可跳过。' },
+    ], note: '下载完成不等于安装完成。首次用户设置需要打开 Ubuntu；密码不需要发给 Agent。' },
     { title: '看到真实检查结果，再确认完成', text: '让 Agent 展示下面的结果。等待下载、重启或用户设置时，本步还未完成；重启或任务中断后，可展开下方指令继续。', expected: 'Ubuntu：完整名称与版本（22.04 或更新）\nWSL：列表中的 VERSION 为 2\n启动检查：能读取系统版本和用户名', note: '列表中的 Stopped 只表示当前未运行。验收时需要实际启动选定的 Ubuntu；下一步继续使用它准备工作目录。' },
-    { title: '重启或中断了？从这里继续安装', optional: true, text: '重新打开 TRAE 本地任务，发送下面的话。助手会先确认安装到了哪一步，再补齐缺失部分。', code: '请继续这台电脑的 WSL 安装任务。先重新检查状态，保留已有环境，只补齐缺失步骤。\n\n沿用已选的 Ubuntu；记录不清或有多个候选时先让我确认。需要管理员确认、重启或首次用户设置时，告诉我具体操作，不自动重启。\n\n用 wsl --list --verbose 确认 WSL 2，再通过 wsl -d 指定完整名称读取 /etc/os-release 和 whoami。实际能启动、Ubuntu 至少为 22.04 且使用 WSL 2，才报告本步完成；否则保留报错并说明下一步。', shell: 'TRAE · Agent 对话框', format: 'prompt' },
-    { title: '备用：Agent 无法安装时，手动执行', optional: true, text: '仅在确认尚未安装可用 Ubuntu、但 Agent 无法调用终端或请求管理员权限时使用。点击 Windows 开始菜单，搜索 PowerShell，右键选择「以管理员身份运行」，执行下面的命令，再按提示完成重启和用户设置。', code: 'wsl --install -d Ubuntu-24.04', shell: 'Windows PowerShell · 管理员', note: '手动完成后使用上方「继续安装」指令验收。不确定是否已有安装时，可先在 PowerShell 运行 wsl --list --verbose，把输出交给 Agent。', link: ['查看 Microsoft WSL 安装说明 ↗', 'https://learn.microsoft.com/zh-cn/windows/wsl/install'] },
+    { title: '下载入口与校验值（需要手动下载时展开）', optional: true, text: '选 Ubuntu 24.04.5、amd64、文件名以 .wsl 结尾的版本。这里的 amd64 同时适用于 Intel / AMD 的 x64 电脑；不要下载 desktop 或 server 的 .iso，也不要把别的文件改名。', items: [{ title: '清华优先，中科大备用', text: '两处提供同名 WSL 文件。安装前让 Agent 核对完整文件的 SHA256，不能只检查文件名或下载成功提示。' },{ title: '下载镜像与软件源分别处理', text: '此处只下载系统安装文件；安装后的 APT 软件源在第 6 步检查，需要时再使用清华、西湖或中科大。' }], expected: `文件：${UBUNTU_WSL.file}\nSHA256：${UBUNTU_WSL.sha256}\n校验依据：Ubuntu 官方 SHA256SUMS，核对日期 2026-10-14`, links: [['清华：下载 Ubuntu WSL ↗',UBUNTU_WSL.primary+UBUNTU_WSL.file],['中科大：备用下载 ↗',UBUNTU_WSL.fallback+UBUNTU_WSL.file],['查看 Ubuntu 官方校验清单 ↗',UBUNTU_WSL.officialChecksums]] },
+    { title: '重启或中断了？从这里继续安装', optional: true, text: '重新打开 TRAE 本地任务，发送下面的话。助手会先确认安装到了哪一步，再补齐缺失部分。', code: '请继续这台电脑的 WSL 安装任务。先重新检查状态，保留已有环境，只补齐缺失步骤。\n\n沿用已选的 Ubuntu；有多个候选时让我确认。尚未下载时使用本页清华 / 中科大地址；已有下载先按本页 SHA256 验证，校验不匹配就停止。不从 GitHub 下载 Ubuntu，不使用 --web-download；安装文件前检查 WSL 程序 2.4.10+ 和 --from-file 支持。缺少下载规格时让我重新复制本页主指令，不猜地址。\n\n需要管理员确认、重启或首次用户设置时，告诉我具体操作，不自动重启。用 wsl --list --verbose 确认 WSL 2，再通过 wsl -d 指定完整名称读取 /etc/os-release 和 whoami。实际能启动、Ubuntu 至少为 22.04 且使用 WSL 2，才报告完成。', shell: 'TRAE · Agent 对话框', format: 'prompt' },
+    { title: '备用：Agent 无法安装时，手动执行', optional: true, text: '先通过 Microsoft Store 安装或更新 Windows Subsystem for Linux，确认 wsl --version 至少为 2.4.10；需要启用系统组件时，在管理员 PowerShell 执行 wsl --install --no-distribution，并按提示重启。已有可用 Ubuntu 无需重装。', items: [{ title: '1. 下载 .wsl 文件', text: '从上方清华或中科大入口下载。确认没有同名 Ubuntu 发行版，避免重复安装。' },{ title: '2. 核对文件', text: '把下方占位文字替换为下载文件的完整路径后执行。结果应与上方 SHA256 完全一致，不一致就停止。' },{ title: '3. 双击安装', text: '校验通过后双击 .wsl 文件，按提示完成本地用户名和密码设置；最后把真实检查输出交给 Agent 验收。' }], code: "Get-FileHash -LiteralPath '替换为下载文件的完整路径' -Algorithm SHA256", shell: 'Windows PowerShell · 文件校验', note: '提示不支持 --from-file 时，先更新 WSL 程序。系统版本、虚拟化或 Store 不可用的问题，按官方说明排查。', links: [['打开 Microsoft Store 的 WSL 页面 ↗','https://apps.microsoft.com/detail/9p9tqf7mrm4r'],['查看 Ubuntu 本地文件安装说明 ↗','https://ubuntu.com/wsl/docs/latest/howto/install-ubuntu-wsl2/']] },
   ], faq: [
     ['TRAE 可以全自动安装 WSL 吗？', '具备本地终端工具与相应权限的 Agent 可以检查并发起官方安装。Windows 管理员确认、必要的重启和首次 Ubuntu 用户名/密码设置需要你配合；是否安装成功以真实验收输出为准。'],
     ['重启后怎么继续？', '重新打开 TRAE 和本教程 WSL 页，展开「重启或中断了？从这里继续安装」，把指令发给助手。它会先核对现状，再继续缺失步骤；无需重新从头安装。'],
     ['Agent 提示权限不足，怎么办？', '按 TRAE 提示允许本次终端操作；Windows 管理员确认需要在本机完成。若 Agent 无法请求提权，展开手动备用步骤；没有管理员权限时联系设备管理员。'],
     ['列表里有两个 Ubuntu，怎么选？', '选择包含自己项目和用户目录的发行版，让 Agent 分别只读检查再确认。不要为了统一名字卸载任何发行版。'],
-    ['安装卡在 0% 或下载失败', '保留错误，检查 Microsoft 下载服务是否可访问。尚未完成安装时，可参考官方文档使用 wsl --install --web-download -d Ubuntu-24.04。'],
+    ['安装卡在 0% 或下载失败', '先确认失败的是微软 WSL 组件，还是 Ubuntu 的 .wsl 文件。Ubuntu 下载可切换清华与中科大的同名文件，并重新核对 SHA256；WSL 组件需检查 Microsoft Store / Windows 更新渠道。APT 换源不会修复这两类下载，也不要改用 GitHub 代理链接。'],
+    ['WSL 2 与 WSL 2.4.10 是一回事吗？', '不是。wsl --list --verbose 的 VERSION 2 表示发行版使用 WSL 2 架构；wsl --version 的 2.4.10 是 WSL 程序版本。本教程的 .wsl 本地文件安装需要程序 2.4.10 或更新。'],
+    ['从清华下载后，还要配置清华或西湖的软件源吗？', '不一定。下载镜像只提供安装文件，不会自动改 APT。第 6 步先检查工具和现有源，下载正常就保留；确需加速时再选择清华、西湖或中科大，并实际验证 apt update 与软件安装。'],
     ['提示需要启用虚拟化', '任务管理器 → 性能 → CPU 可查看虚拟化状态。未启用时按电脑厂商说明设置，或联系设备管理员；Agent 不能代替 BIOS/UEFI 中的操作。'],
   ] },
   { id: 'ubuntu', name: '准备 Linux 工作台', sub: '让 Agent 识别用户、准备目录', tag: 'LINUX WORKSPACE', title: '让 Agent 把工作目录准备好。', desc: '继续使用上一步的 Ubuntu，让助手识别用户、创建工作目录并保存记录。无需自己填写发行版名称或拼接路径。', where: 'TRAE · 同一个本地 Agent 任务', whereClass: 'linux', checks: ['Agent 已确认目标 Ubuntu、普通用户和 Linux x86_64', '工作目录可读写，已看到准备记录的完整路径'], sections: [
@@ -94,13 +109,13 @@ const STEPS = [
     ['输出 aarch64 或缺少 Python', 'aarch64 不符合当前 Linux x86_64 锁定环境，需要先解决平台兼容性。缺少 Python 或版本低于 3.10 则在下一步检查并补齐，不必手动修改系统 Python。'],
   ] },
   { id: 'mirrors', name: '检查下载与基础工具', sub: '缺什么补什么，按需加速', tag: 'DOWNLOAD & TOOLS', title: '先检查下载，再补齐基础工具。', desc: '把检查交给 Agent。工具齐全就复用；需要下载时先用现有来源，遇到问题再处理，无需提前选择镜像。', where: 'TRAE · Agent → 刚确认的 WSL 工作台', whereClass: 'linux', checks: ['Agent 已验证基础工具可用，Python 至少为 3.10', '已查看本步下载结果或无需下载的说明，以及源配置是否改变'], sections: [
-    { title: '复制给 Agent：检查并补齐基础工具', text: '在刚才的任务中继续发送。助手先检查是否缺少工具，只下载必要的部分。', code: '请在刚确认的 WSL 发行版、普通用户和工作目录中准备基础工具；先读取 omics-setup-notes.md 并核对实际执行位置。\n1. 检查 python3、git、curl、wget 和 ca-certificates。现有工具满足要求就复用；Python 需至少 3.10，缺少时用此 Ubuntu 的系统软件包补齐，不改系统 Python 链接，不安装分析依赖。\n2. 确需安装时，先用已有 APT 配置更新索引并安装缺少的工具。全部已有时不必为测试而重装，明确记录本步无需下载。需要 sudo 时让我在本地终端输入密码。\n3. 下载失败先区分网络、源地址、证书、权限或软件包锁等原因。仅在确认换源适用时，按实际 Ubuntu 版本和源文件布局，参考清华 https://mirrors.tuna.tsinghua.edu.cn/help/ubuntu/ 或中科大 https://mirrors.ustc.edu.cn/help/ubuntu.html 选择实测可用的源。先备份原文件，保留发行版代号、签名、安全更新及第三方源；不关闭证书或签名校验。再验证实际 apt update 和必要软件安装，失败则保留错误，不声称已修复。\n4. 不预先配置 pip、R 或 Conda 镜像，不改 Skills 固定下载地址和包版本。基础工具检查不代表后续 GitHub 或分析环境包已下载成功。\n5. 展示工具版本、Python 路径、证书包状态、本步实际下载结果或无需下载、是否换源及备份位置，把结果追加到工作目录的 omics-setup-notes.md。遇到异常旧版 Python，先诊断来源，不强行替换已有环境。', shell: 'TRAE · Agent 对话框' },
+    { title: '复制给 Agent：检查并补齐基础工具', text: '在刚才的任务中继续发送。助手先检查是否缺少工具，只下载必要的部分。', code: '请在刚确认的 WSL 发行版、普通用户和工作目录中准备基础工具；先读取 omics-setup-notes.md 并核对实际执行位置。\n1. 检查 python3、git、curl、wget 和 ca-certificates。现有工具满足要求就复用；Python 需至少 3.10，缺少时用此 Ubuntu 的系统软件包补齐，不改系统 Python 链接，不安装分析依赖。\n2. 确需安装时，先用已有 APT 配置更新索引并安装缺少的工具。全部已有时不必为测试而重装，明确记录本步无需下载。需要 sudo 时让我在本地终端输入密码。\n3. 下载失败先区分网络、源地址、证书、权限或软件包锁等原因。仅在确认换源适用时，按实际 Ubuntu 版本和源文件布局，优先参考清华 https://mirrors.tuna.tsinghua.edu.cn/help/ubuntu/，也可选择西湖 https://mirrors.westlake.edu.cn/posts/ubuntu_help.html 或中科大 https://mirrors.ustc.edu.cn/help/ubuntu.html，按当前网络实测选择一个源。先备份原文件，保留发行版代号、签名、安全更新及第三方源；不关闭证书或签名校验。检查对应版本的 InRelease 与更新日期，再验证实际 apt update 和必要软件安装；保留安全更新通道，不能把部分索引失败当作成功。失败则保留错误，不声称已修复。\n4. 不预先配置 pip、R 或 Conda 镜像，不改 Skills 固定下载地址和包版本。基础工具检查不代表后续 GitHub 或分析环境包已下载成功。\n5. 展示工具版本、Python 路径、证书包状态、本步实际下载结果或无需下载、是否换源及备份位置，把结果追加到工作目录的 omics-setup-notes.md。遇到异常旧版 Python，先诊断来源，不强行替换已有环境。', shell: 'TRAE · Agent 对话框' },
     { title: '你需要配合什么', text: '需要安装基础工具时，按提示在本地终端输入 Ubuntu 密码。本步不必安装 Conda、Miniforge、pip 或 R；Miniforge 和分析用 Python / R 环境统一放在第 8 步部署。', note: '如果 Agent 只能给建议、不能执行 sudo，请让它提供具体命令，在目标 Ubuntu 终端执行后把结果交回验收；不要把密码发到聊天框。' },
     { title: '工具可用，就继续加载 Skills', text: '看到以下实际结果后即可继续。镜像配置不是必做任务；后续仓库和分析依赖的下载会在对应步骤单独检查。', expected: 'Python：3.10 或更新，已显示实际路径\nGit / curl / wget：可运行并返回版本\nca-certificates：已安装\n本步下载：成功，或工具齐全无需下载\n软件源：保持原配置，或已换源并记录备份\n准备记录：已追加本步结果' },
   ], faq: [
     ['必须选择镜像才能继续吗？', '不用。已有基础工具就复用，需要下载时先检查原来源。只有发生适合换源解决的问题时，再让 Agent 选择并验证；查看备用镜像说明不会更改电脑设置或清除完成记录。'],
     ['为什么原来确认过的第 5、6 步需要再确认？', '这两步新增了工作目录读写和基础工具验收，旧的镜像勾选不能代表新检查通过。原确认记录已保留，其他步骤不受影响；已有环境请让 Agent 检查复用即可。'],
-    ['西湖镜像在哪里？', '西湖 Bioconductor 镜像在第 8 步「部署后需要额外 R 包？」的可选说明中，和清华、中科大一起保留。仅收录官方目录中的地址，实时可用性仍需检查。'],
+    ['清华和西湖的软件源需要都配置吗？', '不用。Ubuntu 安装文件的下载来源与 APT 独立；第 6 步按当前网络选择一个实测可用的 Ubuntu 源即可。清华、西湖和中科大均有备用说明；西湖的主仓库与 24.04 更新索引已于 2026-10-14 检查可访问，仍需在实际电脑验证下载。Bioconductor 配置在第 8 步；本页未提供西湖 PyPI 地址。'],
     ['换源后部署仍然下载失败', '当前部署脚本使用 GitHub Miniforge 和 Anaconda 的完整锁定包 URL，普通 APT / PyPI 换源不会覆盖这些地址。让 Agent 定位具体失败文件，保留日志和校验；本页没有实现固定包地址的镜像映射。'],
     ['Agent 新开终端后，镜像设置还在吗？', 'APT 写入配置文件的设置会保留；临时终端变量和 R 会话设置不会自动传到新任务。后续实际使用 pip 或 R 下载时，应在对应命令或脚本中明确指定镜像，参见可选说明。'],
   ] },
