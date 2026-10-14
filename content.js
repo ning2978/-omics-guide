@@ -39,6 +39,8 @@ const TRAE_NETWORK_NOTE = '模型使用 TRAE 账号当前可用的国内服务�
 const SOURCES = [
   ['TRAE · 安装与打开 Agent 窗口', 'https://docs.trae.cn/ide_get-started-with-trae'],
   ['TRAE · 内置 Agent', 'https://docs.trae.cn/ide_built-in-agent'],
+  ['TRAE · Agent 窗口与交互设置', 'https://docs.trae.cn/ide_get-started-with-the-agent-window'],
+  ['TRAE · 权限模式与完全访问', 'https://docs.trae.cn/ide_permission-and-approval'],
   ['TRAE · 内置模型与自定义模型', 'https://docs.trae.cn/ide_models'],
   ['TRAE · Skills 创建、导入与调用', 'https://docs.trae.cn/ide_skills'],
   ['TRAE · IDE 连接 WSL 2', 'https://docs.trae.cn/ide_wsl'],
@@ -58,22 +60,24 @@ const SOURCES = [
 ];
 const STEPS = [
   { id: 'prepare', name: '开始前的准备', sub: '先有助手，再准备环境', tag: '准备', title: '打开 TRAE，让 Agent 陪你起步。', desc: '先选好国内模型，再让 Agent 带你检查 Linux、加载 Omics Skills、部署 Python 和 R。整个过程在 TRAE 中完成。' },
-  { id: 'trae', name: '安装 TRAE', sub: '打开 Agent，选择 DeepSeek', tag: 'TRAE', title: '先把你的 Agent 助手准备好。', desc: 'TRAE 已内置 Agent。安装并登录后打开助手窗口，发送任务前先切换到 DeepSeek 模型；下一步再验证对话与工具。', where: 'Windows · TRAE 中国版', whereClass: 'windows', checks: ['已安装并登录 TRAE 中国版', '已打开 Agent 窗口，并找到新建任务入口'], sections: [
+  { id: 'trae', name: '安装 TRAE', sub: '打开 Agent，选择 DeepSeek', tag: 'TRAE', title: '先把你的 Agent 助手准备好。', desc: 'TRAE 已内置 Agent。安装并登录后打开助手窗口，发送任务前选择 DeepSeek V4.1 Flash，并把交互端权限设为「完全访问」；下一步再验证对话与工具。', where: 'Windows · TRAE 中国版', whereClass: 'windows', checks: ['已安装并登录 TRAE 中国版', '已打开 Agent 窗口，并找到新建任务入口'], sections: [
     { title: '下载 Windows 版并完成登录', text: '从中国官网下载适合 Windows x64 的安装包，安装后按界面提示完成初始化和登录。已经安装可直接打开。', link: ['打开 TRAE 中国官网 ↗', 'https://www.trae.cn/'] },
     { title: '打开 Agent 窗口', text: '在 TRAE 的 IDE 窗口右上角点击「Agent」。进入后能看到「新建任务」等入口；右上角的「IDE」可返回文件和编辑器窗口。', note: '这里的 IDE 和 Agent 都属于 TRAE。旧版本入口可能不同，可对照官方图解。', link: ['查看 TRAE 官方快速开始 ↗', 'https://docs.trae.cn/ide_get-started-with-trae'] },
-    { title: '新建本地任务，先切换 DeepSeek 模型', text: '点击「新建任务」，使用本机任务；已有项目可以选中，尚未准备 Linux 项目也没关系。发送第一条消息前，点击输入框旁的当前模型名称，打开模型列表。', items: [{ title: '优先选择：DeepSeek V4 FLASH v1', text: '如果列表提供这个选项，选中后确认输入框旁显示的模型已经切换。具体名称以当前 TRAE 客户端为准。' },{ title: '没有这个名称？选择其他可用的 DeepSeek（DS）模型', text: '不必为了名称一致重新安装 TRAE。按自己的账号可用列表与额度选择，下一步验证正常回复和工具调用。' }], note: '使用内置模型无需另填 API Key。后面的组学环境需要安装到自己的 WSL Ubuntu，请使用本地任务。' },
+    { title: '新建本地任务，先切换 DeepSeek 模型', text: '点击「新建任务」，使用本机任务；已有项目可以选中，尚未准备 Linux 项目也没关系。发送第一条消息前，点击输入框旁的当前模型名称，打开模型列表。', items: [{ title: '优先选择：DeepSeek V4.1 Flash', text: '如果列表提供这个选项，选中后确认输入框旁显示的模型已经切换。具体名称以当前 TRAE 客户端为准。' },{ title: '没有这个名称？选择其他可用的 DeepSeek（DS）模型', text: '不必为了名称一致重新安装 TRAE。按自己的账号可用列表与额度选择，下一步验证正常回复和工具调用。' }], note: '使用内置模型无需另填 API Key。后面的组学环境需要安装到自己的 WSL Ubuntu，请使用本地任务。' },
+    { title: '把交互端权限设为「完全访问」', text: '在 Agent 对话输入框左下方，点击权限模式入口，选择「完全访问」。确认界面显示已选中后，再发送部署任务。', note: '完全访问会关闭 TRAE 的沙箱和工具审批，让 Agent 直接在本机读写文件、执行命令；它不会自动取得 Windows 管理员或 Ubuntu sudo 权限，系统弹窗和密码仍需在本机处理。', link: ['查看 TRAE 官方权限说明 ↗', 'https://docs.trae.cn/ide_permission-and-approval'] },
   ], faq: [
     ['还需要 VS Code、Cursor 或 Claude Code 吗？', '这条路线直接使用 TRAE 内置 Agent，不需要额外安装这些客户端，也不需要为 Agent 单独安装 Node.js 或 npm。'],
     ['必须创建自定义智能体吗？', '不用，先使用内置 Agent。Skills 为它提供分析方法和部署说明；熟悉流程后再按需要创建自定义智能体。'],
-    ['安装后要切换模型吗？', '建议在发送第一条任务前打开模型列表，优先选择账号可用的 DeepSeek V4 FLASH v1；没有时选择其他可用的 DeepSeek 模型。确认输入框旁显示的是所选模型，再到下一步验证对话和工具。'],
+    ['安装后要切换模型吗？', '建议在发送第一条任务前打开模型列表，优先选择账号可用的 DeepSeek V4.1 Flash；没有时选择其他可用的 DeepSeek 模型。确认输入框旁显示的是所选模型，再到下一步验证对话和工具。'],
+    ['找不到「完全访问」入口', '先查看对话输入框左下方的权限菜单；也可在「设置 → 权限审批」中查看当前模式。若使用的版本尚未启用新权限体系，参考官方说明在「设置 → Beta → 新权限体系」启用后再选择。'],
   ] },
   { id: 'agent', name: '选择模型与 Agent', sub: '使用账号可用的国内模型', tag: 'AGENT & MODEL', title: '选好模型，就可以开始对话。', desc: '使用 TRAE 内置模型即可起步。模型负责理解任务，Agent 负责读取文件、调用工具并执行步骤。', where: 'TRAE · Agent 窗口', whereClass: 'linux', checks: ['已选中账号可用的国内模型，并收到正常回复', '已确认使用能够读取文件和运行终端工具的本地 Agent 任务'], sections: [
-    { title: '确认已切换到 DeepSeek 模型', text: '如果上一步已经选好，核对输入框旁的当前模型名称即可。尚未选择时，点击模型名称，优先选择列表中可用的 DeepSeek V4 FLASH v1，也可以选择其他可用的 DeepSeek（DS）模型；名称、可用列表与额度以自己的 TRAE 客户端和账号为准。', note: '使用内置模型无需另填 DeepSeek API Key。模型在服务端运行，不需要把模型权重下载到电脑。', link: ['查看 TRAE 官方模型说明 ↗', 'https://docs.trae.cn/ide_models'] },
+    { title: '确认模型与权限', text: '发送消息前，核对当前模型为 DeepSeek V4.1 Flash（或其他可用的 DeepSeek 模型），权限模式为「完全访问」。上一步已经选好就直接继续；模型名称、可用列表与额度以自己的 TRAE 客户端和账号为准。', note: '使用内置模型无需另填 DeepSeek API Key。模型在服务端运行，不需要把模型权重下载到电脑。', link: ['查看 TRAE 官方模型说明 ↗', 'https://docs.trae.cn/ide_models'] },
     { title: '让助手说明它能做什么', text: '复制下面的话到 Agent 对话框。收到回复后，查看它是否具备文件和终端工具；下一步会让它实际检查 WSL。', code: '你好，请用中文协助我在这台 Windows 电脑上准备 Omics Skills 分析环境。请说明当前任务是本地还是云端、能否读取本机文件和调用终端。先不要安装软件或修改文件；下一步我们先检查 WSL。', shell: 'TRAE · Agent 对话框', note: '这一步只确认助手可以对话。工具实际运行在哪里，要通过后面的真实执行结果核对。' },
     { title: '可选：需要自己的 API 时再添加', optional: true, text: '如果内置模型已够用，跳过这一项。需要自己的 DeepSeek API 时，点击下方开放平台链接，注册或登录后充值 API 余额，并在 API Keys 中创建密钥。再回到 TRAE「设置 → 模型 → 添加模型」，选择 DeepSeek 服务商，填写密钥并完成校验，然后在对话框选中新增模型。', note: '自定义 API 余额与 TRAE 内置模型额度分别计算。充值在 DeepSeek 官方平台完成，密钥只在自己的客户端填写。', link: ['打开 DeepSeek 开放平台 · 充值 / 购买 API 额度 ↗', 'https://platform.deepseek.com/'] },
   ], faq: [
-    ['我的列表没有 DeepSeek V4 FLASH v1', '模型名、账号权限和套餐会变化。选择账号当前可用的其他 DeepSeek（DS）模型即可；如果没有可用的 DeepSeek，可先使用支持本地 Agent 工具的其他国内模型。以真实回复和工具结果为准，不必因为名称不同重新安装软件。'],
-    ['能聊天，但不能执行命令', '确认任务运行在本机，并支持文件与终端工具。查看工具调用是否等待你的操作；如果工具不可用，先解决 Agent 的执行能力，再进入部署。'],
+    ['我的列表没有 DeepSeek V4.1 Flash', '模型名、账号权限和套餐会变化。选择账号当前可用的其他 DeepSeek（DS）模型即可；如果没有可用的 DeepSeek，可先使用支持本地 Agent 工具的其他国内模型。以真实回复和工具结果为准，不必因为名称不同重新安装软件。'],
+    ['能聊天，但不能执行命令', '确认是支持文件和终端工具的本地 Agent 任务，并核对交互端权限已选择「完全访问」。Windows 管理员弹窗、Ubuntu sudo 密码或工具未启用的问题仍需分别处理；以实际工具结果为准。'],
     ['是否全程都不需要代理？', TRAE_NETWORK_NOTE],
   ] },
   { id: 'wsl', name: '让 Agent 安装 WSL', sub: 'Ubuntu 从国内镜像下载', tag: 'WSL 2', title: 'Ubuntu 从国内下载，安装交给 Agent。', desc: '先复用已有环境。需要新装时，从清华下载 Ubuntu 24.04 LTS 的 WSL 文件，中科大作为备用；下载校验通过后再安装。', where: 'TRAE · 本地 Agent；按提示处理 Windows 管理员确认', whereClass: 'windows', checks: ['已安装并能启动一个 Ubuntu 22.04 或更高版本', 'wsl --list --verbose 中，所选 Ubuntu 的 VERSION 为 2'], sections: [
@@ -139,7 +143,7 @@ const STEPS = [
     ['必须先在 TRAE 装 R / Python 插件吗？', 'Agent 通过终端调用部署报告中的实际解释器即可运行分析，插件不是此路线的必装项。需要手动编辑、调试或使用 Notebook 时，再按 TRAE 扩展商店支持情况配置；安装插件不等于安装了 R、Python 或分析包。'],
     ['Agent 说完成了，但没有报告', '要求展示实际命令、退出状态、报告路径与内容。没有 create 报告及测试结果，不要勾选部署完成。'],
     ['显示 PASS，分析仍然失败', '先确认 PASS 来自 create / verify，再检查分析是否使用报告中的准确解释器。专用方法需要读取对应 Skill 并执行运行前检查。'],
-    ['需要把整台电脑交给自动审批吗？', '不需要。本教程没有要求修改全局审批设置；按当前客户端的提示处理具体操作即可。'],
+    ['设为「完全访问」后，还需要管理员确认吗？', '需要时仍要确认。第 2 步设置的是 TRAE 工具执行权限，不会代替 Windows 管理员授权、Ubuntu sudo 密码或重启操作。遇到系统提示时，在本机处理后让 Agent 继续。'],
   ] },
   { id: 'finish', name: '完成与下一步', sub: '查看记录，开始分析', tag: 'READY FOR SCIENCE', title: '为你的分析工作台，留一份记录。', desc: '这份进度来自你的手动确认。真正的环境可用性，请以实际部署报告、解释器路径和测试结果为准。' },
 ];
