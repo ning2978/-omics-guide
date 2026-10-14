@@ -61,14 +61,17 @@ function displayStep(step) { return step; }
 function canPrepare() { return state.os !== 'older' && state.arch === 'x64'; }
 function checksFor(step) { return step.id === 'prepare' ? ['我已确认电脑满足上面的 Windows 与 x64 条件', '我可以安装软件，并已保存需要保留的工作'] : (displayStep(step).checks || []); }
 function isReady(step) { return checksFor(step).every((_, i) => state.checks[step.id]?.[i]) && (step.id !== 'prepare' || canPrepare()); }
-function codeBlock(text, shell) {
+function codeBlock(text, shell, format) {
   const index = codes.push(text) - 1;
-  return `<div class="codebox"><div class="codehead"><span>›_ &nbsp;${escapeHTML(shell || 'Ubuntu · Bash')}</span><button class="copy-button" data-copy="${index}" aria-label="复制${escapeHTML(shell || 'Ubuntu')}命令">▣ &nbsp;复制</button></div><pre><code>${escapeHTML(text)}</code></pre></div>`;
+  const prompt = format === 'prompt';
+  const copyLabel = prompt ? '复制指令' : '复制';
+  return `<div class="codebox${prompt?' promptbox':''}"><div class="codehead"><span>›_ &nbsp;${escapeHTML(shell || 'Ubuntu · Bash')}</span><button class="copy-button" data-copy="${index}" data-copy-label="${copyLabel}" aria-label="${prompt?'复制给 Agent 的任务说明':'复制'+escapeHTML(shell || 'Ubuntu')+'命令'}">▣ &nbsp;${copyLabel}</button></div><pre><code>${escapeHTML(text)}</code></pre></div>`;
 }
 function sectionsHTML(sections) {
   return sections.map((item,index) => {
     const content = '<p>'+escapeHTML(item.text)+'</p><div class="content-indent">'+
-      (item.code ? codeBlock(item.code,item.shell) : '')+
+      (item.code ? codeBlock(item.code,item.shell,item.format) : '')+
+      (item.items ? '<ul class="action-list">'+item.items.map(entry=>'<li><strong>'+escapeHTML(entry.title)+'</strong><span>'+escapeHTML(entry.text)+'</span></li>').join('')+'</ul>' : '')+
       (item.expected ? '<div class="expected"><strong>对照参考 · 请以实际结果为准</strong><pre>'+escapeHTML(item.expected)+'</pre></div>' : '')+
       (item.note ? '<p class="inline-note">ⓘ &nbsp;'+escapeHTML(item.note)+'</p>' : '')+
       (item.link ? '<a class="out-link" href="'+escapeHTML(item.link[1])+'" target="_blank" rel="noreferrer">'+escapeHTML(item.link[0])+'</a>' : '')+'</div>';
@@ -172,7 +175,7 @@ document.addEventListener('click',async event => {
   if (button.dataset.copy!==undefined) {
     const text = codes[Number(button.dataset.copy)];
     if (typeof text !== 'string') return;
-    try { await navigator.clipboard.writeText(text); button.textContent='✓ 已复制'; toast('已复制。请到标注的终端或对话框粘贴。'); setTimeout(()=> {if(button.isConnected) button.innerHTML='▣ &nbsp;复制';},2200); }
+    try { await navigator.clipboard.writeText(text); button.textContent='✓ 已复制'; toast('已复制。请到标注的终端或对话框粘贴。'); setTimeout(()=> {if(button.isConnected) button.textContent='▣ '+(button.dataset.copyLabel || '复制');},2200); }
     catch { openDialog('手动复制这段内容','<p>浏览器未开放剪贴板权限。选中下方文本，按 Ctrl + C 复制。</p><textarea class="copy-fallback" readonly aria-label="待复制内容"></textarea>'); $('.copy-fallback').value=text; $('.copy-fallback').select(); }
     return;
   }
@@ -202,7 +205,7 @@ document.addEventListener('click',async event => {
     case 'close': $('#help-dialog').close(); break;
     case 'pick-step': $('#step-nav .step-link').focus(); $('#step-nav').scrollIntoView({block:'nearest'}); toast('点击步骤名称即可跳转，浏览不会标记完成。'); break;
     case 'system-help': openDialog('查看你的 Windows 和处理器','<p>按 Windows + R，输入 <strong>winver</strong> 并按 Enter，查看 Windows 版本及内部版本号。</p><p>再打开「设置 → 系统 → 系统信息 / 关于」，查看「系统类型」。本教程的部署环境需要<strong>基于 x64 的处理器</strong>。</p><p>Windows 10 需要版本 2004、内部版本 19041 或更高；Windows 11 可继续。ARM 处理器暂不适用这份环境锁定配置。</p>'); break;
-    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不自动上传日志、不自动安装软件。浏览器保存安装进度；反馈草稿只在当前页面暂存。点击前往 GitHub 时会把你预览的反馈带到公开 Issues 编辑页，由你确认提交。TRAE 技能自动发现、账号连接与国内直连全流程仍需在实际电脑验收。</p><p>网站版本 0.7.0。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
+    case 'sources': openDialog('资料来源与版本',`<p>教程核对日期：2026-10-13。页面依据官方安装文档及本地 Omics Skills 部署契约整理。第三方软件界面、账号权限和模型名称可能更新。</p><ul class="sources-list">${SOURCES.map(([name,url])=>`<li><a href="${escapeHTML(url)}" target="_blank" rel="noreferrer">${escapeHTML(name)} ↗</a></li>`).join('')}</ul><p>本网站不收集 API Key、不自动上传日志、不自动安装软件。浏览器保存安装进度；反馈草稿只在当前页面暂存。点击前往 GitHub 时会把你预览的反馈带到公开 Issues 编辑页，由你确认提交。TRAE 技能自动发现、账号连接与国内直连全流程仍需在实际电脑验收。</p><p>网站版本 0.7.1。Skills 仓库目前未指定许可证；公开可见不等于已授予开源许可。</p>`); break;
     case 'download': downloadProgress(); break;
     case 'reset': openDialog('重置这份安装进度？','<p>只清除这个浏览器中保存的路线和勾选记录，不影响电脑上已经安装的软件或任何分析数据。</p><div class="bottom-actions"><button class="button-secondary" data-action="close">保留进度</button><button class="button-primary" data-action="confirm-reset">重置进度</button></div>'); break;
     case 'confirm-reset': state=freshState(); save(); $('#help-dialog').close(); go('prepare'); toast('进度已重置，已安装的软件不受影响。'); break;
